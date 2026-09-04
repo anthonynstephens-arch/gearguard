@@ -1,8 +1,10 @@
 import "server-only";
 
 const API_VERSION=process.env.SHOPIFY_API_VERSION||"2026-07";
+const DEFAULT_SHOP_DOMAIN="1d974a.myshopify.com";
+export function getShopifyShopDomain(){return process.env.SHOPIFY_SHOP_DOMAIN?.replace(/^https?:\/\//,"").replace(/\/$/,"")||DEFAULT_SHOP_DOMAIN}
 export async function shopifyGraphQL<T>(query:string,variables:Record<string,unknown>={}):Promise<T>{
-  const shop=process.env.SHOPIFY_SHOP_DOMAIN?.replace(/^https?:\/\//,"").replace(/\/$/,"");const token=process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;if(!shop||!token)throw new Error("Shopify credentials are not configured");
+  const shop=getShopifyShopDomain();const token=process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;if(!token)throw new Error("Shopify credentials are not configured");
   const response=await fetch(`https://${shop}/admin/api/${API_VERSION}/graphql.json`,{method:"POST",headers:{"content-type":"application/json","x-shopify-access-token":token},body:JSON.stringify({query,variables}),cache:"no-store"});
   const payload=await response.json();if(!response.ok||payload.errors?.length)throw new Error(payload.errors?.map((item:{message:string})=>item.message).join("; ")||`Shopify returned ${response.status}`);return payload.data as T;
 }

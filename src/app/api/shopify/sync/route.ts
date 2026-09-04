@@ -2,6 +2,7 @@ import { apiFailure, ApiError, requireAppMember } from "@/lib/api-auth";
 import {
   COLLECTION_PRODUCTS_QUERY,
   COMPANY_QUERY,
+  getShopifyShopDomain,
   inferCategory,
   shopifyGraphQL,
   stripHtml,
@@ -279,7 +280,7 @@ export async function POST() {
         shopify_company_location_id:
           department.shopify_company_location_id ||
           companyData.company.locations.nodes[0]?.id,
-        shopify_shop_domain: process.env.SHOPIFY_SHOP_DOMAIN,
+        shopify_shop_domain: getShopifyShopDomain(),
         shopify_sync_status: "CONNECTED",
         shopify_last_sync_at: now,
         shopify_sync_error: null,
