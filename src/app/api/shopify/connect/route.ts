@@ -1,0 +1,4 @@
+import { z } from "zod";
+import { apiFailure,requireAppMember } from "@/lib/api-auth";
+const schema=z.object({companyId:z.string().startsWith("gid://shopify/Company/"),companyName:z.string().min(1).max(200),locationId:z.string().startsWith("gid://shopify/CompanyLocation/")});
+export async function POST(request:Request){try{const body=schema.parse(await request.json());const {member,admin}=await requireAppMember(true);const result=await admin.from("departments").update({shopify_company_id:body.companyId,shopify_company_name:body.companyName,shopify_company_location_id:body.locationId,shopify_shop_domain:process.env.SHOPIFY_SHOP_DOMAIN,shopify_sync_status:"READY",shopify_sync_error:null}).eq("id",member.department_id);if(result.error)throw result.error;return Response.json({success:true})}catch(error){return apiFailure(error)}}

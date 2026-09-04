@@ -1,0 +1,13 @@
+"use client";
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowRight,CheckCircle2,ShieldCheck } from "lucide-react";
+import { createBrowserSupabase } from "@/lib/supabase/browser";
+
+export function LoginForm({demo}:{demo:boolean}){
+  const router=useRouter();
+  const [email,setEmail]=useState("");const [sent,setSent]=useState(false);const [error,setError]=useState("");const [loading,setLoading]=useState(false);
+  async function submit(event:React.FormEvent){event.preventDefault();if(demo){router.push("/portal");return}setLoading(true);setError("");const supabase=createBrowserSupabase();const {error:authError}=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:`${location.origin}/auth/confirm`}});setLoading(false);if(authError)setError(authError.message);else setSent(true)}
+  return <div className="login-page"><section className="login-story"><Link href="/" className="brand-lockup"><span className="brand-mark">G</span><span>GearGuard</span></Link><div><span className="eyebrow"><ShieldCheck size={15}/> Secure agency access</span><h1>Every member. Every allowance. One clean ledger.</h1><p>GearGuard verifies members against your connected Shopify B2B company and gives each person the right portal automatically.</p><div className="login-points"><span><CheckCircle2/>No shared passwords</span><span><CheckCircle2/>Manager permissions by department</span><span><CheckCircle2/>Financial changes are server controlled</span></div></div><small>Uniform procurement infrastructure for public safety.</small></section><section className="login-panel"><div className="login-card">{sent?<><div className="success-icon"><CheckCircle2/></div><h2>Check your inbox</h2><p>We sent a secure sign-in link to <b>{email}</b>.</p></>:<><span className="mini-label">Member and manager portal</span><h2>Sign in to GearGuard</h2><p>Use the email address assigned to your department&apos;s Shopify company.</p><form onSubmit={submit}><label>Email address</label><input type="email" required value={email} onChange={event=>setEmail(event.target.value)} placeholder="name@department.gov"/>{error&&<div className="form-error">{error}</div>}<button className="button button-red" disabled={loading}>{loading?"Sending…":"Continue securely"}<ArrowRight size={17}/></button></form>{demo&&<div className="demo-callout"><b>Preview mode</b><span>No account is required while the database is being connected.</span><Link href="/portal">Enter member portal →</Link><Link href="/manager">Enter manager portal →</Link></div>}</>}</div></section></div>
+}
