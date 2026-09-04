@@ -36,7 +36,8 @@ export const COLLECTION_PRODUCTS_QUERY=`#graphql
 query GearGuardCollectionProducts($id:ID!,$first:Int!,$after:String){collection(id:$id){id title handle updatedAt image{url} products(first:$first,after:$after,sortKey:TITLE){pageInfo{hasNextPage endCursor}nodes{id title handle descriptionHtml vendor productType tags status featuredImage{url} variants(first:100){nodes{id title sku price inventoryQuantity availableForSale selectedOptions{name value}}}}}}}`;
 export const CUSTOMER_ORDERS_QUERY=`#graphql
 query GearGuardCustomerOrders($id:ID!,$first:Int!,$after:String){customer(id:$id){id orders(first:$first,after:$after,sortKey:CREATED_AT,reverse:true){pageInfo{hasNextPage endCursor}nodes{id name createdAt cancelledAt currentSubtotalPriceSet{shopMoney{amount currencyCode}}}}}}`;
-export const APP_SCOPES_QUERY=`#graphql query GearGuardAppScopes{currentAppInstallation{accessScopes{handle}}}`;
+export const APP_SCOPES_QUERY=`#graphql
+query GearGuardAppScopes{currentAppInstallation{accessScopes{handle}}}`;
 const CREATE_DRAFT=`#graphql
 mutation GearGuardDraftOrder($input:DraftOrderInput!){draftOrderCreate(input:$input){draftOrder{id name invoiceUrl status totalPriceSet{shopMoney{amount currencyCode}}}userErrors{field message}}}`;
 export async function createDraftOrder({request,items,member,department,allowanceAmount}:{request:Record<string,unknown>;items:Array<Record<string,unknown>>;member:Record<string,unknown>;department:Record<string,unknown>;allowanceAmount:number}){
