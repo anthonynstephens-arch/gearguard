@@ -26,6 +26,10 @@ export const demoContext: PortalContext = {
     { id:"product-3",title:"Station Work Pants",description:"Professional uniform pants with reinforced knees",category:"Pants",price:71.5,allowance_eligible:true,approval_required:false,active:true,shopify_product_id:"gid://shopify/Product/3",variants:["32×30","34×30","34×32","36×32"].map((title,index)=>({id:`gid://shopify/ProductVariant/3${index}`,title,sku:`MFR-PANT-${index}`,price:71.5,available:true})) },
     { id:"product-4",title:"Structural Glove Set",description:"NFPA-rated replacement gloves",category:"Protective Gear",price:128,allowance_eligible:true,approval_required:true,active:true,shopify_product_id:"gid://shopify/Product/4",variants:["M","L","XL"].map((title,index)=>({id:`gid://shopify/ProductVariant/4${index}`,title,sku:`MFR-GLOVE-${title}`,price:128,available:true})) },
   ],
+  collections:[
+    {id:"collection-1",shopify_collection_id:"gid://shopify/Collection/1001",title:"Metro Fire Uniform Store",handle:"metro-fire-uniform-store",shopify_synced_at:"2026-09-04T18:42:00Z"},
+    {id:"collection-2",shopify_collection_id:"gid://shopify/Collection/1002",title:"Approved Duty Gear",handle:"approved-duty-gear",shopify_synced_at:"2026-09-04T18:42:00Z"},
+  ],
   requests:[
     {id:"request-1",request_number:"GG-260904-8C2F",member_id:"member-1",member_name:"Jordan Ellis",status:"PENDING_APPROVAL",total_amount:82,allowance_amount:82,personal_amount:0,submitted_at:"2026-09-04T16:24:00Z"},
     {id:"request-2",request_number:"GG-260902-40A1",member_id:"member-2",member_name:"Maya Thompson",status:"SHIPPED",total_amount:142.5,allowance_amount:142.5,personal_amount:0,submitted_at:"2026-09-02T13:10:00Z",shopify_order_name:"#1844",tracking_number:"1Z72A03E0391452266"},

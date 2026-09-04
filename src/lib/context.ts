@@ -31,15 +31,23 @@ export async function loadPortalContext():Promise<PortalContext|null>{
   }
   if(!member)return null;
   const manager=member.role==="manager"||member.role==="admin";
-  const [departmentResult,accountResult,membersResult,accountsResult,productsResult,requestsResult,ledgerResult]=await Promise.all([
+  const [departmentResult,accountResult,membersResult,accountsResult,assignmentsResult,requestsResult,ledgerResult]=await Promise.all([
     admin.from("departments").select("*").eq("id",member.department_id).single(),
     admin.from("allowance_accounts").select("*").eq("member_id",member.id).single(),
     manager?admin.from("members").select("*").eq("department_id",member.department_id).order("last_name"):admin.from("members").select("*").eq("id",member.id),
     manager?admin.from("allowance_accounts").select("*").eq("department_id",member.department_id):admin.from("allowance_accounts").select("*").eq("member_id",member.id),
-    admin.from("products").select("*").eq("active",true).order("title"),
+    admin.from("department_shopify_collections").select("collection_id,shopify_collections(*)").eq("department_id",member.department_id),
     manager?admin.from("purchase_requests").select("*").eq("department_id",member.department_id).order("submitted_at",{ascending:false}):admin.from("purchase_requests").select("*").eq("member_id",member.id).order("submitted_at",{ascending:false}),
     admin.from("allowance_transactions").select("*").eq("member_id",member.id).order("created_at",{ascending:false}).limit(50),
   ]);
   if(departmentResult.error||accountResult.error)throw departmentResult.error||accountResult.error;
-  return {demo:false,member,department:departmentResult.data,account:accountResult.data,members:membersResult.data||[],accounts:accountsResult.data||[],products:(productsResult.data||[]).map(product=>({...product,variants:product.variants||[]})),requests:requestsResult.data||[],ledger:ledgerResult.data||[]};
+  if(assignmentsResult.error)throw assignmentsResult.error;
+  const collections=(assignmentsResult.data||[]).flatMap(row=>Array.isArray(row.shopify_collections)?row.shopify_collections:row.shopify_collections?[row.shopify_collections]:[]);
+  const collectionIds=(assignmentsResult.data||[]).map(row=>row.collection_id);
+  const memberships=collectionIds.length?await admin.from("product_shopify_collections").select("product_id").in("collection_id",collectionIds):{data:[],error:null};
+  if(memberships.error)throw memberships.error;
+  const productIds=Array.from(new Set((memberships.data||[]).map(row=>row.product_id)));
+  const productsResult=productIds.length?await admin.from("products").select("*").in("id",productIds).eq("active",true).order("title"):{data:[],error:null};
+  if(productsResult.error)throw productsResult.error;
+  return {demo:false,member,department:departmentResult.data,account:accountResult.data,members:membersResult.data||[],accounts:accountsResult.data||[],products:(productsResult.data||[]).map(product=>({...product,variants:product.variants||[]})),collections,requests:requestsResult.data||[],ledger:ledgerResult.data||[]};
 }

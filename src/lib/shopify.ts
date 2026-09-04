@@ -10,8 +10,10 @@ export const COMPANIES_QUERY=`#graphql
 query GearGuardCompanies($first:Int!,$after:String){companies(first:$first,after:$after,sortKey:NAME){pageInfo{hasNextPage endCursor}nodes{id name locations(first:50){nodes{id name}}}}}`;
 export const COMPANY_QUERY=`#graphql
 query GearGuardCompany($id:ID!){company(id:$id){id name locations(first:50){nodes{id name}}contacts(first:250){nodes{id title customer{id firstName lastName defaultEmailAddress{emailAddress} state}roleAssignments(first:50){nodes{companyLocation{id name}role{id name}}}}}}}`;
-export const PRODUCTS_QUERY=`#graphql
-query GearGuardProducts($first:Int!,$after:String,$query:String){products(first:$first,after:$after,query:$query,sortKey:TITLE){pageInfo{hasNextPage endCursor}nodes{id title handle descriptionHtml vendor productType tags status featuredMedia{preview{image{url}}}variants(first:100){nodes{id title sku price inventoryQuantity availableForSale selectedOptions{name value}}}}}}`;
+export const COLLECTIONS_QUERY=`#graphql
+query GearGuardCollections($first:Int!,$after:String){collections(first:$first,after:$after,sortKey:TITLE){pageInfo{hasNextPage endCursor}nodes{id title handle updatedAt image{url}}}}`;
+export const COLLECTION_PRODUCTS_QUERY=`#graphql
+query GearGuardCollectionProducts($id:ID!,$first:Int!,$after:String){collection(id:$id){id title handle updatedAt image{url} products(first:$first,after:$after,sortKey:TITLE){pageInfo{hasNextPage endCursor}nodes{id title handle descriptionHtml vendor productType tags status featuredImage{url} variants(first:100){nodes{id title sku price inventoryQuantity availableForSale selectedOptions{name value}}}}}}}`;
 const CREATE_DRAFT=`#graphql
 mutation GearGuardDraftOrder($input:DraftOrderInput!){draftOrderCreate(input:$input){draftOrder{id name invoiceUrl status totalPriceSet{shopMoney{amount currencyCode}}}userErrors{field message}}}`;
 export async function createDraftOrder({request,items,member,department,allowanceAmount}:{request:Record<string,unknown>;items:Array<Record<string,unknown>>;member:Record<string,unknown>;department:Record<string,unknown>;allowanceAmount:number}){

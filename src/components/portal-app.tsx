@@ -14,6 +14,7 @@ import {
   CloudCog,
   DollarSign,
   History,
+  Layers3,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -50,6 +51,14 @@ type ShopifyCompany = {
   name: string;
   locations: { nodes: Array<{ id: string; name: string }> };
 };
+type ShopifyStoreCollection = {
+  id: string;
+  title: string;
+  handle: string;
+  updatedAt: string;
+  imageUrl?: string | null;
+  selected: boolean;
+};
 
 export function PortalApp({
   context,
@@ -71,6 +80,18 @@ export function PortalApp({
   const [members, setMembers] = useState(context.members);
   const [requests, setRequests] = useState(context.requests);
   const [companies, setCompanies] = useState<ShopifyCompany[]>([]);
+  const [collectionOptions, setCollectionOptions] = useState<
+    ShopifyStoreCollection[]
+  >(
+    context.collections.map((collection) => ({
+      id: collection.shopify_collection_id,
+      title: collection.title,
+      handle: collection.handle,
+      updatedAt: collection.shopify_synced_at || new Date().toISOString(),
+      imageUrl: collection.image_url,
+      selected: true,
+    })),
+  );
   const [companyId, setCompanyId] = useState(
     context.department.shopify_company_id || "",
   );
@@ -223,7 +244,9 @@ export function PortalApp({
         if (!response.ok)
           throw new Error((await response.json()).error || "Sync failed");
       }
-      setNotice("Shopify members and products synchronized successfully");
+      setNotice(
+        "Shopify members and assigned collections synchronized successfully",
+      );
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Sync failed");
     } finally {
@@ -287,6 +310,77 @@ export function PortalApp({
       setNotice(`${company.name} connected to GearGuard`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Connection failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function loadCollections() {
+    setBusy(true);
+    try {
+      if (context.demo) {
+        setCollectionOptions([
+          {
+            id: "gid://shopify/Collection/1001",
+            title: "Metro Fire Uniform Store",
+            handle: "metro-fire-uniform-store",
+            updatedAt: new Date().toISOString(),
+            selected: true,
+          },
+          {
+            id: "gid://shopify/Collection/1002",
+            title: "Approved Duty Gear",
+            handle: "approved-duty-gear",
+            updatedAt: new Date().toISOString(),
+            selected: true,
+          },
+          {
+            id: "gid://shopify/Collection/1003",
+            title: "Public Store Apparel",
+            handle: "public-store-apparel",
+            updatedAt: new Date().toISOString(),
+            selected: false,
+          },
+        ]);
+        setNotice("Shopify collections loaded");
+        return;
+      }
+      const response = await fetch("/api/shopify/collections");
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Could not load collections");
+      setCollectionOptions(data.collections);
+      setNotice("Shopify collections loaded");
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "Could not load collections",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveCollections() {
+    const selectedCollections = collectionOptions.filter(
+      (collection) => collection.selected,
+    );
+    setBusy(true);
+    try {
+      if (!context.demo) {
+        const response = await fetch("/api/shopify/collections", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ collections: selectedCollections }),
+        });
+        const data = await response.json();
+        if (!response.ok)
+          throw new Error(data.error || "Collection assignment failed");
+      }
+      setNotice(
+        `${selectedCollections.length} ${selectedCollections.length === 1 ? "collection" : "collections"} assigned to this company`,
+      );
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "Collection assignment failed",
+      );
     } finally {
       setBusy(false);
     }
@@ -1000,7 +1094,7 @@ export function PortalApp({
         <PageHead
           eyebrow="Commerce connection"
           title="Shopify B2B integration"
-          subtitle="Control the company roster, product catalog, draft orders, and live status updates"
+          subtitle="Connect a company, assign its Shopify collections, and keep orders synchronized"
         />
         <div className="integration-hero">
           <div className="integration-icon">
@@ -1027,7 +1121,7 @@ export function PortalApp({
             onClick={syncShopify}
           >
             <RefreshCw size={16} className={busy ? "spin" : ""} />
-            {busy ? "Working…" : "Sync now"}
+            {busy ? "Working…" : "Sync assigned collections"}
           </button>
         </div>
         <section className="card connect-card">
@@ -1082,6 +1176,77 @@ export function PortalApp({
             </button>
           </div>
         </section>
+        <section className="card collection-card">
+          <div className="section-head">
+            <div>
+              <h3>Company collections</h3>
+              <p>
+                Only products inside selected collections appear for this
+                company.
+              </p>
+            </div>
+            <button onClick={loadCollections} disabled={busy || !companyId}>
+              <RefreshCw />
+              Load collections
+            </button>
+          </div>
+          {collectionOptions.length ? (
+            <>
+              <div className="collection-picker">
+                {collectionOptions.map((collection) => (
+                  <label
+                    className={collection.selected ? "selected" : ""}
+                    key={collection.id}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={collection.selected}
+                      onChange={() =>
+                        setCollectionOptions((rows) =>
+                          rows.map((row) =>
+                            row.id === collection.id
+                              ? { ...row, selected: !row.selected }
+                              : row,
+                          ),
+                        )
+                      }
+                    />
+                    <span className="collection-check">
+                      {collection.selected ? <Check size={14} /> : null}
+                    </span>
+                    <Layers3 />
+                    <span>
+                      <b>{collection.title}</b>
+                      <small>/{collection.handle}</small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div className="collection-actions">
+                <span>
+                  {
+                    collectionOptions.filter(
+                      (collection) => collection.selected,
+                    ).length
+                  }{" "}
+                  selected
+                </span>
+                <button
+                  className="button button-dark"
+                  disabled={busy}
+                  onClick={saveCollections}
+                >
+                  Save company catalog
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="collection-empty">
+              Load collections from Shopify, then select the ones this company
+              is allowed to shop.
+            </div>
+          )}
+        </section>
         <div className="integration-grid">
           <section className="card">
             <SectionHead title="Connection" />
@@ -1095,6 +1260,16 @@ export function PortalApp({
               <div>
                 <span>Company ID</span>
                 <code>{context.department.shopify_company_id || "—"}</code>
+              </div>
+              <div>
+                <span>Assigned collections</span>
+                <b>
+                  {
+                    collectionOptions.filter(
+                      (collection) => collection.selected,
+                    ).length
+                  }
+                </b>
               </div>
               <div>
                 <span>Last successful sync</span>
@@ -1123,7 +1298,7 @@ export function PortalApp({
               </span>
               <span>
                 <CheckCircle2 />
-                Products and variants → catalog
+                Assigned collections → company catalog
               </span>
               <span>
                 <CheckCircle2 />

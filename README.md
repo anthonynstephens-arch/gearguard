@@ -1,6 +1,6 @@
 # GearGuard
 
-GearGuard is a standalone uniform allowance and gear procurement portal for fire departments and public-safety agencies. It imports people and products from Shopify B2B, tracks per-member allowance balances outside Shopify, routes purchases for approval, creates Shopify draft orders, and maintains an auditable financial ledger.
+GearGuard is a standalone uniform allowance and gear procurement portal for fire departments and public-safety agencies. It imports Shopify B2B members, assigns selected Shopify collections to each company, tracks per-member allowance balances outside Shopify, routes purchases for approval, creates Shopify draft orders, and maintains an auditable financial ledger.
 
 ## Stack
 
@@ -12,7 +12,8 @@ GearGuard is a standalone uniform allowance and gear procurement portal for fire
 ## Included workflows
 
 - Shopify B2B company and company-location mapping
-- Contact-to-member and product/variant synchronization
+- Contact-to-member synchronization
+- Company-specific Shopify collection assignment and product visibility
 - Manager-assigned annual allowances, manual adjustments, and annual resets
 - Member catalog, cart, allowance reservation, and personal overage visibility
 - Manager approval or denial with reservation release and a durable audit trail
@@ -26,7 +27,8 @@ GearGuard is a standalone uniform allowance and gear procurement portal for fire
 2. Copy `.env.example` to `.env.local` and enter the Supabase and Shopify values.
 3. In Shopify, create a custom app with these Admin API scopes: `read_companies`, `read_customers`, `read_products`, `read_orders`, `read_fulfillments`, `read_draft_orders`, `write_draft_orders`, and `write_webhooks`.
 4. Set `GEARGUARD_OWNER_EMAIL` to the first administrator's email. Their first passwordless login creates the initial department administrator.
-5. Deploy to Vercel, set the same environment variables, then open Manager portal → Shopify B2B to select a company, synchronize, and register webhooks.
+5. Deploy to Vercel and set the same environment variables.
+6. Open Manager portal → Shopify B2B, select the company and location, load the store's collections, assign the approved collections, synchronize, and register webhooks.
 
 `NEXT_PUBLIC_DEMO_MODE=true` runs the interactive preview without credentials. Set it to `false` for the connected production portal.
 
