@@ -38,6 +38,7 @@ export const demoContext: PortalContext = {
     {id:"request-3",request_number:"GG-260831-1B77",member_id:"member-4",member_name:"Riley Brooks",status:"PENDING_APPROVAL",total_amount:163,allowance_amount:163,personal_amount:0,submitted_at:"2026-08-31T19:42:00Z"},
     {id:"request-4",request_number:"GG-260829-93D0",member_id:"member-1",member_name:"Jordan Ellis",status:"COMPLETED",total_amount:92,allowance_amount:92,personal_amount:0,submitted_at:"2026-08-29T14:05:00Z",shopify_order_name:"#1831"},
   ],
+  historicalOrders:[],
   ledger:[
     {id:"txn-1",type:"RESERVATION",amount:-82,balance_after:232.5,reason:"Reserved for GG-260904-8C2F",created_at:"2026-09-04T16:24:00Z"},
     {id:"txn-2",type:"PURCHASE",amount:-92,balance_after:314.5,reason:"Shopify order #1831",created_at:"2026-08-29T14:08:00Z"},
