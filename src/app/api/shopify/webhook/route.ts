@@ -7,7 +7,10 @@ function gid(type: string, id: unknown) {
 }
 export async function POST(request: Request) {
   const raw = await request.text();
-  const secret = process.env.SHOPIFY_WEBHOOK_SECRET || "";
+  const secret =
+    process.env.SHOPIFY_WEBHOOK_SECRET ||
+    process.env.SHOPIFY_CLIENT_SECRET ||
+    "";
   const received = request.headers.get("x-shopify-hmac-sha256") || "";
   const calculated = createHmac("sha256", secret)
     .update(raw, "utf8")

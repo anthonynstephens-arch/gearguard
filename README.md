@@ -24,7 +24,7 @@ GearGuard is a standalone uniform allowance and gear procurement portal for fire
 ## One-time setup
 
 1. Create a Supabase project and run `supabase/migrations/20260904000000_initial_gearguard_schema.sql`.
-2. Copy `.env.example` to `.env.local` and enter the Supabase and Shopify values.
+2. Copy `.env.example` to `.env.local` and enter the Supabase and Shopify Client ID/Client Secret values. GearGuard automatically obtains and caches Shopify's 24-hour access token. `SHOPIFY_ADMIN_ACCESS_TOKEN` remains an optional legacy fallback.
 3. In Shopify, create a custom app with these Admin API scopes: `read_companies`, `read_customers`, `read_products`, `read_orders`, `read_fulfillments`, `read_draft_orders`, `write_draft_orders`, and `write_webhooks`.
 4. Set `GEARGUARD_OWNER_EMAIL` to the first administrator's email. Their first passwordless login creates the initial department administrator.
 5. Deploy to Vercel and set the same environment variables.

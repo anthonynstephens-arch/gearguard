@@ -2,9 +2,27 @@ import "server-only";
 
 const API_VERSION=process.env.SHOPIFY_API_VERSION||"2026-07";
 const DEFAULT_SHOP_DOMAIN="1d974a.myshopify.com";
+let cachedAccessToken:{value:string;expiresAt:number}|null=null;
+let accessTokenRequest:Promise<string>|null=null;
 export function getShopifyShopDomain(){return process.env.SHOPIFY_SHOP_DOMAIN?.replace(/^https?:\/\//,"").replace(/\/$/,"")||DEFAULT_SHOP_DOMAIN}
+async function requestShopifyAccessToken(){
+  const permanentToken=process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;if(permanentToken)return permanentToken;
+  if(cachedAccessToken&&cachedAccessToken.expiresAt>Date.now())return cachedAccessToken.value;
+  if(accessTokenRequest)return accessTokenRequest;
+  const clientId=process.env.SHOPIFY_CLIENT_ID,clientSecret=process.env.SHOPIFY_CLIENT_SECRET;
+  if(!clientId||!clientSecret)throw new Error("Shopify client credentials are not configured");
+  const shop=getShopifyShopDomain();
+  accessTokenRequest=(async()=>{
+    const response=await fetch(`https://${shop}/admin/oauth/access_token`,{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({grant_type:"client_credentials",client_id:clientId,client_secret:clientSecret}),cache:"no-store"});
+    const payload=await response.json() as {access_token?:string;expires_in?:number;error?:string;error_description?:string};
+    if(!response.ok||!payload.access_token)throw new Error(payload.error_description||payload.error||`Shopify authentication returned ${response.status}`);
+    cachedAccessToken={value:payload.access_token,expiresAt:Date.now()+Math.max(60,(payload.expires_in||86399)-300)*1000};
+    return cachedAccessToken.value;
+  })();
+  try{return await accessTokenRequest}finally{accessTokenRequest=null}
+}
 export async function shopifyGraphQL<T>(query:string,variables:Record<string,unknown>={}):Promise<T>{
-  const shop=getShopifyShopDomain();const token=process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;if(!token)throw new Error("Shopify credentials are not configured");
+  const shop=getShopifyShopDomain();const token=await requestShopifyAccessToken();
   const response=await fetch(`https://${shop}/admin/api/${API_VERSION}/graphql.json`,{method:"POST",headers:{"content-type":"application/json","x-shopify-access-token":token},body:JSON.stringify({query,variables}),cache:"no-store"});
   const payload=await response.json();if(!response.ok||payload.errors?.length)throw new Error(payload.errors?.map((item:{message:string})=>item.message).join("; ")||`Shopify returned ${response.status}`);return payload.data as T;
 }
