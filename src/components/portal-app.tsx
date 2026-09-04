@@ -19,6 +19,7 @@ import {
   LogOut,
   Menu,
   Package,
+  Pencil,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -78,7 +79,9 @@ export function PortalApp({
   const [category, setCategory] = useState("All");
   const [accounts, setAccounts] = useState(context.accounts);
   const [members, setMembers] = useState(context.members);
+  const [editingMember, setEditingMember] = useState<PortalContext["member"] | null>(null);
   const [requests, setRequests] = useState(context.requests);
+  const [historicalOrders, setHistoricalOrders] = useState(context.historicalOrders);
   const [companies, setCompanies] = useState<ShopifyCompany[]>([]);
   const [collectionOptions, setCollectionOptions] = useState<
     ShopifyStoreCollection[]
@@ -99,7 +102,7 @@ export function PortalApp({
     context.department.shopify_company_location_id || "",
   );
   useEffect(()=>{
-    setMembers(context.members);setAccounts(context.accounts);setRequests(context.requests);
+    setMembers(context.members);setAccounts(context.accounts);setRequests(context.requests);setHistoricalOrders(context.historicalOrders);
     setCompanyId(context.department.shopify_company_id||"");setLocationId(context.department.shopify_company_location_id||"");
     setCollectionOptions(context.collections.map((collection)=>({id:collection.shopify_collection_id,title:collection.title,handle:collection.handle,updatedAt:collection.shopify_synced_at||new Date().toISOString(),imageUrl:collection.image_url,selected:true})));
   },[context]);
@@ -261,14 +264,14 @@ export function PortalApp({
     }
   }
   async function importPurchaseHistory(){
-    if(!window.confirm("Import each linked member's Shopify purchases from the last six months and deduct them from assigned allowances? Orders already imported will be skipped."))return;
+    if(!window.confirm("Import all orders from this Shopify B2B company for the last six months, match them to department members, and deduct them from assigned allowances? Orders already imported will be skipped."))return;
     setBusy(true);
     try{
       if(context.demo){setNotice("Historical purchases imported; duplicate orders were skipped");return}
       const response=await fetch("/api/shopify/import-history",{method:"POST"});
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||"Purchase history import failed");
-      setNotice(`${data.imported} orders imported for ${data.membersScanned} members; ${money(data.amountDeducted)} deducted from available balances${data.warning?` — ${data.warning}`:""}`);
+      setNotice(`${data.imported} of ${data.ordersFound} department orders imported; ${money(data.amountDeducted)} deducted${data.unmatched?`; ${data.unmatched} could not be matched to a member`:""}${data.warning?` — ${data.warning}`:""}`);
       router.refresh();
     }catch(error){setNotice(error instanceof Error?error.message:"Purchase history import failed")}finally{setBusy(false)}
   }
@@ -526,6 +529,42 @@ export function PortalApp({
       setNotice(
         error instanceof Error ? error.message : "Member creation failed",
       );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function saveMember() {
+    if (!editingMember) return;
+    setBusy(true);
+    try {
+      let updated = editingMember;
+      if (!context.demo) {
+        const response = await fetch("/api/members", {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            id: editingMember.id,
+            email: editingMember.email,
+            firstName: editingMember.first_name,
+            lastName: editingMember.last_name,
+            employeeId: editingMember.employee_id || null,
+            badgeNumber: editingMember.badge_number || null,
+            rank: editingMember.rank || null,
+            station: editingMember.station || null,
+            platoon: editingMember.platoon || null,
+            role: editingMember.role,
+            status: editingMember.status,
+          }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Member update failed");
+        updated = data.member;
+      }
+      setMembers((rows) => rows.map((member) => member.id === updated.id ? updated : member));
+      setEditingMember(null);
+      setNotice(`${updated.first_name} ${updated.last_name} updated`);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Member update failed");
     } finally {
       setBusy(false);
     }
@@ -834,9 +873,15 @@ export function PortalApp({
     );
   }
   function Orders({ personal = false }: { personal?: boolean }) {
-    const rows = personal
-      ? requests.filter((request) => request.member_id === context.member.id)
-      : requests;
+    const visibleRequests=personal?requests.filter((request)=>request.member_id===context.member.id):requests;
+    const requestShopifyNames=new Set(visibleRequests.map(request=>request.shopify_order_name).filter(Boolean));
+    const requestRows=visibleRequests.map((request)=>({
+      id:`request-${request.id}`,reference:request.request_number,memberName:request.member_name,date:request.submitted_at,status:request.status,shopify:request.shopify_order_name||"—",total:request.total_amount,
+    }));
+    const importedRows=(personal?historicalOrders.filter((order)=>order.member_id===context.member.id):historicalOrders).filter(order=>!requestShopifyNames.has(order.shopify_order_name)).map((order)=>({
+      id:`import-${order.id}`,reference:order.shopify_order_name,memberName:order.member_name,date:order.order_created_at,status:"IMPORTED",shopify:order.shopify_order_name,total:order.order_amount,
+    }));
+    const rows=[...requestRows,...importedRows].sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());
     return (
       <>
         <PageHead
@@ -857,21 +902,21 @@ export function PortalApp({
               </tr>
             </thead>
             <tbody>
-              {rows.map((request) => (
-                <tr key={request.id}>
+              {rows.map((order) => (
+                <tr key={order.id}>
                   <td>
-                    <b>{request.request_number}</b>
+                    <b>{order.reference}</b>
                   </td>
-                  {!personal && <td>{request.member_name}</td>}
-                  <td>{date(request.submitted_at)}</td>
+                  {!personal && <td>{order.memberName}</td>}
+                  <td>{date(order.date)}</td>
                   <td>
-                    <span className={statusClass(request.status)}>
-                      {request.status.replaceAll("_", " ")}
+                    <span className={statusClass(order.status)}>
+                      {order.status.replaceAll("_", " ")}
                     </span>
                   </td>
-                  <td>{request.shopify_order_name || "—"}</td>
+                  <td>{order.shopify}</td>
                   <td className="right">
-                    <b>{money(request.total_amount)}</b>
+                    <b>{money(order.total)}</b>
                   </td>
                 </tr>
               ))}
@@ -955,6 +1000,7 @@ export function PortalApp({
                 <th>Shopify</th>
                 <th>Status</th>
                 <th className="right">Available</th>
+                <th className="right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -1008,6 +1054,11 @@ export function PortalApp({
                             (account?.reserved_amount || 0),
                         )}
                       </b>
+                    </td>
+                    <td className="right">
+                      <button className="icon-action" onClick={() => setEditingMember({ ...member })} aria-label={`Edit ${member.first_name} ${member.last_name}`}>
+                        <Pencil size={15} /> Edit
+                      </button>
                     </td>
                   </tr>
                 );
@@ -1677,6 +1728,30 @@ export function PortalApp({
                 <ArrowRight />
               </button>
             </footer>
+          </aside>
+        </div>
+      )}
+      {editingMember && (
+        <div className="drawer-wrap">
+          <button className="drawer-backdrop" onClick={() => setEditingMember(null)} aria-label="Close member editor" />
+          <aside className="cart-drawer member-editor">
+            <header>
+              <div><small>Roster management</small><h2>Edit member</h2></div>
+              <button onClick={() => setEditingMember(null)}><X /></button>
+            </header>
+            <div className="member-edit-form">
+              <label>First name<input value={editingMember.first_name} onChange={(event)=>setEditingMember({...editingMember,first_name:event.target.value})} /></label>
+              <label>Last name<input value={editingMember.last_name} onChange={(event)=>setEditingMember({...editingMember,last_name:event.target.value})} /></label>
+              <label className="wide">Email<input type="email" value={editingMember.email} onChange={(event)=>setEditingMember({...editingMember,email:event.target.value})} /></label>
+              <label>Employee ID<input value={editingMember.employee_id||""} onChange={(event)=>setEditingMember({...editingMember,employee_id:event.target.value})} /></label>
+              <label>Badge number<input value={editingMember.badge_number||""} onChange={(event)=>setEditingMember({...editingMember,badge_number:event.target.value})} /></label>
+              <label>Rank / title<input value={editingMember.rank||""} onChange={(event)=>setEditingMember({...editingMember,rank:event.target.value})} /></label>
+              <label>Station<input value={editingMember.station||""} onChange={(event)=>setEditingMember({...editingMember,station:event.target.value})} /></label>
+              <label>Platoon / shift<input value={editingMember.platoon||""} onChange={(event)=>setEditingMember({...editingMember,platoon:event.target.value})} /></label>
+              <label>Portal role<select value={editingMember.role} onChange={(event)=>setEditingMember({...editingMember,role:event.target.value as PortalContext["member"]["role"]})}><option value="member">Member</option><option value="manager">Manager</option><option value="admin">Department admin</option></select></label>
+              <label>Status<select value={editingMember.status} onChange={(event)=>setEditingMember({...editingMember,status:event.target.value as PortalContext["member"]["status"]})}><option value="active">Active</option><option value="leave">On leave</option><option value="inactive">Inactive</option></select></label>
+            </div>
+            <footer><button className="button button-dark" disabled={busy||!editingMember.first_name.trim()||!editingMember.last_name.trim()||!editingMember.email.trim()} onClick={saveMember}>{busy?"Saving…":"Save member"}</button></footer>
           </aside>
         </div>
       )}
