@@ -37,13 +37,14 @@ export async function loadPortalContext():Promise<PortalContext|null>{
   if(departmentsResult.error)throw departmentsResult.error;
   if(platformOwner){const selected=(await cookies()).get("gearguard_department_id")?.value;if(selected&&(departmentsResult.data||[]).some(row=>row.id===selected))departmentId=selected}
   const manager=platformOwner||member.role==="manager"||member.role==="admin";
-  const [departmentResult,accountResult,membersResult,accountsResult,assignmentsResult,requestsResult,ledgerResult]=await Promise.all([
+  const [departmentResult,accountResult,membersResult,accountsResult,assignmentsResult,requestsResult,historicalResult,ledgerResult]=await Promise.all([
     admin.from("departments").select("*").eq("id",departmentId).single(),
     admin.from("allowance_accounts").select("*").eq("member_id",member.id).maybeSingle(),
     manager?admin.from("members").select("*").eq("department_id",departmentId).order("last_name"):admin.from("members").select("*").eq("id",member.id),
     manager?admin.from("allowance_accounts").select("*").eq("department_id",departmentId):admin.from("allowance_accounts").select("*").eq("member_id",member.id),
     admin.from("department_shopify_collections").select("collection_id,shopify_collections(*)").eq("department_id",departmentId),
     manager?admin.from("purchase_requests").select("*").eq("department_id",departmentId).order("submitted_at",{ascending:false}):admin.from("purchase_requests").select("*").eq("member_id",member.id).order("submitted_at",{ascending:false}),
+    manager?admin.from("shopify_order_imports").select("*").eq("department_id",departmentId).order("order_created_at",{ascending:false}):admin.from("shopify_order_imports").select("*").eq("member_id",member.id).order("order_created_at",{ascending:false}),
     admin.from("allowance_transactions").select("*").eq("member_id",member.id).order("created_at",{ascending:false}).limit(50),
   ]);
   if(departmentResult.error||accountResult.error)throw departmentResult.error||accountResult.error;
@@ -56,5 +57,7 @@ export async function loadPortalContext():Promise<PortalContext|null>{
   const productsResult=productIds.length?await admin.from("products").select("*").in("id",productIds).eq("active",true).order("title"):{data:[],error:null};
   if(productsResult.error)throw productsResult.error;
   const account=accountResult.data||{id:"",member_id:member.id,annual_amount:0,current_balance:0,reserved_amount:0,spent_amount:0,reset_date:departmentResult.data.allowance_reset_date};
-  return {demo:false,platformOwner,departments:platformOwner?(departmentsResult.data||[]):[departmentResult.data],member,department:departmentResult.data,account,members:membersResult.data||[],accounts:accountsResult.data||[],products:(productsResult.data||[]).map(product=>({...product,variants:product.variants||[]})),collections,requests:requestsResult.data||[],ledger:ledgerResult.data||[]};
+  if(historicalResult.error)throw historicalResult.error;
+  const roster=new Map((membersResult.data||[]).map(row=>[row.id,`${row.first_name} ${row.last_name}`.trim()]));
+  return {demo:false,platformOwner,departments:platformOwner?(departmentsResult.data||[]):[departmentResult.data],member,department:departmentResult.data,account,members:membersResult.data||[],accounts:accountsResult.data||[],products:(productsResult.data||[]).map(product=>({...product,variants:product.variants||[]})),collections,requests:requestsResult.data||[],historicalOrders:(historicalResult.data||[]).map(order=>({...order,member_name:roster.get(order.member_id)||"Unknown member"})),ledger:ledgerResult.data||[]};
 }
