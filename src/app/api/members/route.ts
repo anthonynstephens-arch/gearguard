@@ -14,11 +14,11 @@ const schema = z.object({
 export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());
-    const { member: manager, admin } = await requireAppMember(true);
+    const { member: manager, admin, departmentId } = await requireAppMember(true);
     const duplicate = await admin
       .from("members")
       .select("id")
-      .eq("department_id", manager.department_id)
+      .eq("department_id", departmentId)
       .ilike("email", body.email)
       .maybeSingle();
     if (duplicate.data)
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     const created = await admin
       .from("members")
       .insert({
-        department_id: manager.department_id,
+        department_id: departmentId,
         first_name: body.firstName,
         last_name: body.lastName,
         email: body.email,
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     const account = await admin
       .from("allowance_accounts")
       .insert({
-        department_id: manager.department_id,
+        department_id: departmentId,
         member_id: created.data.id,
         annual_amount: body.annualAllowance,
         current_balance: body.annualAllowance,
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     }
     if (body.annualAllowance > 0) {
       await admin.from("allowance_transactions").insert({
-        department_id: manager.department_id,
+        department_id: departmentId,
         member_id: created.data.id,
         account_id: account.data.id,
         manager_id: manager.id,

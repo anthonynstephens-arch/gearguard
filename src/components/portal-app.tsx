@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -98,6 +98,11 @@ export function PortalApp({
   const [locationId, setLocationId] = useState(
     context.department.shopify_company_location_id || "",
   );
+  useEffect(()=>{
+    setMembers(context.members);setAccounts(context.accounts);setRequests(context.requests);
+    setCompanyId(context.department.shopify_company_id||"");setLocationId(context.department.shopify_company_location_id||"");
+    setCollectionOptions(context.collections.map((collection)=>({id:collection.shopify_collection_id,title:collection.title,handle:collection.handle,updatedAt:collection.shopify_synced_at||new Date().toISOString(),imageUrl:collection.image_url,selected:true})));
+  },[context]);
   const available = Math.max(
     0,
     context.account.current_balance - context.account.reserved_amount,
@@ -219,13 +224,14 @@ export function PortalApp({
                 ...account,
                 current_balance:
                   modeName === "set"
-                    ? amount
+                    ? Math.max(account.reserved_amount, amount-account.spent_amount)
                     : modeName === "credit"
                       ? account.current_balance + amount
                       : Math.max(
                           account.reserved_amount,
                           account.current_balance - amount,
                         ),
+                annual_amount: modeName === "set" ? amount : account.annual_amount,
               },
         ),
       );
@@ -245,13 +251,26 @@ export function PortalApp({
           throw new Error((await response.json()).error || "Sync failed");
       }
       setNotice(
-        "Shopify members and assigned collections synchronized successfully",
+        "Shopify members and assigned collections imported successfully",
       );
+      router.refresh();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Sync failed");
     } finally {
       setBusy(false);
     }
+  }
+  async function importPurchaseHistory(){
+    if(!window.confirm("Import each linked member's Shopify purchases from the last six months and deduct them from assigned allowances? Orders already imported will be skipped."))return;
+    setBusy(true);
+    try{
+      if(context.demo){setNotice("Historical purchases imported; duplicate orders were skipped");return}
+      const response=await fetch("/api/shopify/import-history",{method:"POST"});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error||"Purchase history import failed");
+      setNotice(`${data.imported} orders imported for ${data.membersScanned} members; ${money(data.amountDeducted)} deducted from available balances`);
+      router.refresh();
+    }catch(error){setNotice(error instanceof Error?error.message:"Purchase history import failed")}finally{setBusy(false)}
   }
   async function loadCompanies() {
     setBusy(true);
@@ -308,11 +327,20 @@ export function PortalApp({
         if (!response.ok) throw new Error(data.error || "Connection failed");
       }
       setNotice(`${company.name} connected to GearGuard`);
+      router.refresh();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Connection failed");
     } finally {
       setBusy(false);
     }
+  }
+  async function viewDepartment(departmentId:string){
+    setBusy(true);
+    try{
+      const response=await fetch("/api/departments/view-as",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({departmentId})});
+      const data=await response.json();if(!response.ok)throw new Error(data.error||"Could not switch department");
+      setNotice("Department view changed");router.refresh();
+    }catch(error){setNotice(error instanceof Error?error.message:"Could not switch department")}finally{setBusy(false)}
   }
   async function loadCollections() {
     setBusy(true);
@@ -1059,7 +1087,7 @@ export function PortalApp({
                             adjust(account.member_id, account.id, "set")
                           }
                         >
-                          Set
+                          Set annual
                         </button>
                       </div>
                     </td>
@@ -1121,7 +1149,7 @@ export function PortalApp({
             onClick={syncShopify}
           >
             <RefreshCw size={16} className={busy ? "spin" : ""} />
-            {busy ? "Working…" : "Sync assigned collections"}
+            {busy ? "Working…" : "Import members & catalog"}
           </button>
         </div>
         <section className="card connect-card">
@@ -1328,6 +1356,16 @@ export function PortalApp({
             Register webhooks
           </button>
         </section>
+        <section className="card setup-card">
+          <History />
+          <div>
+            <h3>Six-month purchase history</h3>
+            <p>Import each linked member’s recent Shopify orders, skip duplicates, and deduct purchases from the allowance you assign.</p>
+          </div>
+          <button className="button button-light" disabled={busy||!context.department.shopify_company_id} onClick={importPurchaseHistory}>
+            Import six months
+          </button>
+        </section>
       </>
     );
   }
@@ -1479,6 +1517,14 @@ export function PortalApp({
             </span>
             <b>{context.department.name}</b>
           </div>
+          {mode==="manager"&&context.platformOwner&&context.departments.length>0&&(
+            <label className="view-as-control">
+              <span>View as</span>
+              <select value={context.department.id} disabled={busy} onChange={(event)=>viewDepartment(event.target.value)}>
+                {context.departments.map((department)=><option key={department.id} value={department.id}>{department.name}</option>)}
+              </select>
+            </label>
+          )}
           <div className="top-user">
             <div>
               <b>

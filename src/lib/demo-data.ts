@@ -12,6 +12,8 @@ const rawMembers = [
 
 export const demoContext: PortalContext = {
   demo:true,
+  platformOwner:false,
+  departments:[],
   department:{ id:departmentId,name:"Metro Fire & Rescue",code:"MFR",fiscal_year:"2026",approval_required:true,approval_threshold:150,allow_personal_overage:true,shopify_shop_domain:"your-store.myshopify.com",shopify_company_id:"gid://shopify/Company/1001",shopify_company_name:"Metro Fire & Rescue",shopify_sync_status:"CONNECTED",shopify_last_sync_at:"2026-09-04T18:42:00Z" },
   member:{ id:"member-1",department_id:departmentId,first_name:"Jordan",last_name:"Ellis",email:"jordan@metrofire.example",badge_number:"4271",rank:"Firefighter / Paramedic",station:"7",platoon:"B",role:"manager",status:"active",shopify_company_contact_id:"gid://shopify/CompanyContact/1001" },
   account:{ id:"allowance-1",member_id:"member-1",annual_amount:500,current_balance:314.5,reserved_amount:82,spent_amount:185.5,reset_date:"2027-01-01" },
@@ -43,3 +45,4 @@ export const demoContext: PortalContext = {
     {id:"txn-4",type:"PURCHASE",amount:-128.5,balance_after:371.5,reason:"Shopify order #1802",created_at:"2026-07-19T18:15:00Z"},
   ],
 };
+demoContext.departments=[demoContext.department];

@@ -33,7 +33,7 @@ const schema = z.object({
 
 export async function GET() {
   try {
-    const { member, admin } = await requireAppMember(true);
+    const { admin, departmentId } = await requireAppMember(true);
     const collections: ShopifyCollection[] = [];
     let after: string | null = null;
 
@@ -51,7 +51,7 @@ export async function GET() {
     const assignments = await admin
       .from("department_shopify_collections")
       .select("collection_id,shopify_collections(shopify_collection_id)")
-      .eq("department_id", member.department_id);
+      .eq("department_id", departmentId);
     if (assignments.error) throw assignments.error;
 
     const selected = new Set(
@@ -78,7 +78,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = schema.parse(await request.json());
-    const { member, admin } = await requireAppMember(true);
+    const { admin, departmentId } = await requireAppMember(true);
 
     if (body.collections.length) {
       const upserted = await admin.from("shopify_collections").upsert(
@@ -110,14 +110,14 @@ export async function POST(request: Request) {
     const existingAssignments = await admin
       .from("department_shopify_collections")
       .select("collection_id")
-      .eq("department_id", member.department_id);
+      .eq("department_id", departmentId);
     if (existingAssignments.error) throw existingAssignments.error;
     if (selectedIds.length) {
       const inserted = await admin
         .from("department_shopify_collections")
         .upsert(
           selectedIds.map((collectionId) => ({
-            department_id: member.department_id,
+            department_id: departmentId,
             collection_id: collectionId,
           })),
           { onConflict: "department_id,collection_id", ignoreDuplicates: true },
@@ -131,7 +131,7 @@ export async function POST(request: Request) {
         const removed = await admin
           .from("department_shopify_collections")
           .delete()
-          .eq("department_id", member.department_id)
+          .eq("department_id", departmentId)
           .in("collection_id", removedIds);
         if (removed.error) throw removed.error;
       }
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
       const removed = await admin
         .from("department_shopify_collections")
         .delete()
-        .eq("department_id", member.department_id);
+        .eq("department_id", departmentId);
       if (removed.error) throw removed.error;
     }
 

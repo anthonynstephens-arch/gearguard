@@ -3,6 +3,7 @@ import { demoContext } from "./demo-data";
 import type { PortalContext } from "./types";
 import { createAdminSupabase } from "./supabase/admin";
 import { createServerSupabase } from "./supabase/server";
+import { cookies } from "next/headers";
 
 export function isDemoMode(){return process.env.NEXT_PUBLIC_DEMO_MODE==="true"||!process.env.NEXT_PUBLIC_SUPABASE_URL||!process.env.SUPABASE_SECRET_KEY}
 
@@ -30,14 +31,19 @@ export async function loadPortalContext():Promise<PortalContext|null>{
     }
   }
   if(!member)return null;
-  const manager=member.role==="manager"||member.role==="admin";
+  const platformOwner=process.env.GEARGUARD_OWNER_EMAIL?.toLowerCase()===user.email.toLowerCase();
+  let departmentId=member.department_id;
+  const departmentsResult=platformOwner?await admin.from("departments").select("*").order("name"):{data:[],error:null};
+  if(departmentsResult.error)throw departmentsResult.error;
+  if(platformOwner){const selected=(await cookies()).get("gearguard_department_id")?.value;if(selected&&(departmentsResult.data||[]).some(row=>row.id===selected))departmentId=selected}
+  const manager=platformOwner||member.role==="manager"||member.role==="admin";
   const [departmentResult,accountResult,membersResult,accountsResult,assignmentsResult,requestsResult,ledgerResult]=await Promise.all([
-    admin.from("departments").select("*").eq("id",member.department_id).single(),
-    admin.from("allowance_accounts").select("*").eq("member_id",member.id).single(),
-    manager?admin.from("members").select("*").eq("department_id",member.department_id).order("last_name"):admin.from("members").select("*").eq("id",member.id),
-    manager?admin.from("allowance_accounts").select("*").eq("department_id",member.department_id):admin.from("allowance_accounts").select("*").eq("member_id",member.id),
-    admin.from("department_shopify_collections").select("collection_id,shopify_collections(*)").eq("department_id",member.department_id),
-    manager?admin.from("purchase_requests").select("*").eq("department_id",member.department_id).order("submitted_at",{ascending:false}):admin.from("purchase_requests").select("*").eq("member_id",member.id).order("submitted_at",{ascending:false}),
+    admin.from("departments").select("*").eq("id",departmentId).single(),
+    admin.from("allowance_accounts").select("*").eq("member_id",member.id).maybeSingle(),
+    manager?admin.from("members").select("*").eq("department_id",departmentId).order("last_name"):admin.from("members").select("*").eq("id",member.id),
+    manager?admin.from("allowance_accounts").select("*").eq("department_id",departmentId):admin.from("allowance_accounts").select("*").eq("member_id",member.id),
+    admin.from("department_shopify_collections").select("collection_id,shopify_collections(*)").eq("department_id",departmentId),
+    manager?admin.from("purchase_requests").select("*").eq("department_id",departmentId).order("submitted_at",{ascending:false}):admin.from("purchase_requests").select("*").eq("member_id",member.id).order("submitted_at",{ascending:false}),
     admin.from("allowance_transactions").select("*").eq("member_id",member.id).order("created_at",{ascending:false}).limit(50),
   ]);
   if(departmentResult.error||accountResult.error)throw departmentResult.error||accountResult.error;
@@ -49,5 +55,6 @@ export async function loadPortalContext():Promise<PortalContext|null>{
   const productIds=Array.from(new Set((memberships.data||[]).map(row=>row.product_id)));
   const productsResult=productIds.length?await admin.from("products").select("*").in("id",productIds).eq("active",true).order("title"):{data:[],error:null};
   if(productsResult.error)throw productsResult.error;
-  return {demo:false,member,department:departmentResult.data,account:accountResult.data,members:membersResult.data||[],accounts:accountsResult.data||[],products:(productsResult.data||[]).map(product=>({...product,variants:product.variants||[]})),collections,requests:requestsResult.data||[],ledger:ledgerResult.data||[]};
+  const account=accountResult.data||{id:"",member_id:member.id,annual_amount:0,current_balance:0,reserved_amount:0,spent_amount:0,reset_date:departmentResult.data.allowance_reset_date};
+  return {demo:false,platformOwner,departments:platformOwner?(departmentsResult.data||[]):[departmentResult.data],member,department:departmentResult.data,account,members:membersResult.data||[],accounts:accountsResult.data||[],products:(productsResult.data||[]).map(product=>({...product,variants:product.variants||[]})),collections,requests:requestsResult.data||[],ledger:ledgerResult.data||[]};
 }

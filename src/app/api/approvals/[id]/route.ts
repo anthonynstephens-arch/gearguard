@@ -14,7 +14,7 @@ export async function POST(
   try {
     const { id } = await context.params;
     const body = schema.parse(await request.json());
-    const { member: manager, admin } = await requireAppMember(true);
+    const { member: manager, admin, departmentId } = await requireAppMember(true);
     const requestRow = await admin
       .from("purchase_requests")
       .select("*")
@@ -22,7 +22,7 @@ export async function POST(
       .single();
     if (requestRow.error) throw requestRow.error;
     const purchase = requestRow.data;
-    if (purchase.department_id !== manager.department_id)
+    if (purchase.department_id !== departmentId)
       throw new ApiError(
         "You cannot approve another department's request",
         403,

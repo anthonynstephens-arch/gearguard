@@ -65,11 +65,11 @@ type CollectionProductsPage = {
 
 export async function POST() {
   try {
-    const { member, admin } = await requireAppMember(true);
+    const { admin, departmentId } = await requireAppMember(true);
     const departmentResult = await admin
       .from("departments")
       .select("*")
-      .eq("id", member.department_id)
+      .eq("id", departmentId)
       .single();
     if (departmentResult.error) throw departmentResult.error;
     const department = departmentResult.data;
