@@ -1574,6 +1574,63 @@ h1 {
   width: 100%;
   margin-top: 10px;
 }
+.icon-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fff;
+  padding: 7px 10px;
+  color: var(--navy);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.member-edit-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+.member-edit-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.member-edit-form label.wide {
+  grid-column: 1 / -1;
+}
+.member-edit-form input,
+.member-edit-form select {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0 11px;
+  color: var(--navy);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.member-editor footer {
+  padding: 18px 20px;
+  border-top: 1px solid var(--line);
+  background: #f8fafb;
+}
+@media (max-width: 520px) {
+  .member-edit-form { grid-template-columns: 1fr; }
+  .member-edit-form label.wide { grid-column: auto; }
+}
 .overage {
   color: #a66b13;
 }
