@@ -64,7 +64,7 @@ type ShopifyStoreCollection = {
   imageUrl?: string | null;
   selected: boolean;
 };
-type OrderDetail={reference:string;shopifyReference?:string|null;memberName:string;date:string;status:string;total:number;allowanceAmount:number;personalAmount:number;source:string;lineItems:Array<{id:string;name:string;variantTitle?:string|null;sku?:string|null;quantity:number;unitPrice:number;lineTotal:number;imageUrl?:string|null;properties:Array<{key:string;value:string}>}>};
+type OrderDetail={historicalOrderId?:string;allowanceAccounted?:boolean;attributedLineItemIds?:string[];reference:string;shopifyReference?:string|null;memberName:string;date:string;status:string;total:number;allowanceAmount:number;personalAmount:number;source:string;lineItems:Array<{id:string;name:string;variantTitle?:string|null;sku?:string|null;quantity:number;unitPrice:number;lineTotal:number;imageUrl?:string|null;properties:Array<{key:string;value:string}>}>};
 
 export function PortalApp({
   context,
@@ -85,8 +85,12 @@ export function PortalApp({
   const [accounts, setAccounts] = useState(context.accounts);
   const [members, setMembers] = useState(context.members);
   const [editingMember, setEditingMember] = useState<PortalContext["member"] | null>(null);
+  const [editingIsChief,setEditingIsChief]=useState(false);
   const [requests, setRequests] = useState(context.requests);
   const [historicalOrders, setHistoricalOrders] = useState(context.historicalOrders);
+  const [departmentRoles,setDepartmentRoles]=useState(context.departmentRoles);
+  const [chiefMemberId,setChiefMemberId]=useState(context.department.chief_member_id||"");
+  const [attributionMemberId,setAttributionMemberId]=useState("");
   const [orderDetail,setOrderDetail]=useState<OrderDetail|null>(null);
   const [orderLoading,setOrderLoading]=useState(false);
   const [reportView,setReportView]=useState<"allowances"|"orders"|"attention">("allowances");
@@ -110,10 +114,17 @@ export function PortalApp({
     context.department.shopify_company_location_id || "",
   );
   useEffect(()=>{
-    setMembers(context.members);setAccounts(context.accounts);setRequests(context.requests);setHistoricalOrders(context.historicalOrders);
+    setMembers(context.members);setAccounts(context.accounts);setRequests(context.requests);setHistoricalOrders(context.historicalOrders);setDepartmentRoles(context.departmentRoles);setChiefMemberId(context.department.chief_member_id||"");
     setCompanyId(context.department.shopify_company_id||"");setLocationId(context.department.shopify_company_location_id||"");
     setCollectionOptions(context.collections.map((collection)=>({id:collection.shopify_collection_id,title:collection.title,handle:collection.handle,updatedAt:collection.shopify_synced_at||new Date().toISOString(),imageUrl:collection.image_url,selected:true})));
   },[context]);
+  useEffect(()=>{
+    if(mode!=="manager"||context.demo)return;
+    const refresh=()=>router.refresh();
+    window.addEventListener("focus",refresh);
+    const timer=window.setInterval(refresh,15000);
+    return()=>{window.removeEventListener("focus",refresh);window.clearInterval(timer)};
+  },[mode,context.demo,router]);
   const available = Math.max(
     0,
     context.account.current_balance - context.account.reserved_amount,
@@ -186,14 +197,13 @@ export function PortalApp({
             })),
           }),
         });
-        if (!response.ok)
-          throw new Error((await response.json()).error || "Checkout failed");
+        const data=await response.json();
+        if (!response.ok)throw new Error(data.error || "Checkout failed");
+        setRequests(rows=>[data.request,...rows.filter(row=>row.id!==data.request.id)]);
+        setNotice(data.request.status==="PENDING_APPROVAL"?"Request submitted for manager approval":"Order created in Shopify");
+      }else{
+        setNotice(cartTotal > context.department.approval_threshold?"Request submitted for manager approval":"Order created in Shopify");
       }
-      setNotice(
-        cartTotal > context.department.approval_threshold
-          ? "Request submitted for manager approval"
-          : "Order created in Shopify",
-      );
       setCart([]);
       setCartOpen(false);
       setTab("orders");
@@ -566,6 +576,8 @@ export function PortalApp({
             station: editingMember.station || null,
             platoon: editingMember.platoon || null,
             role: editingMember.role,
+            departmentRoleId:editingMember.department_role_id||null,
+            isChief:editingIsChief,
             status: editingMember.status,
           }),
         });
@@ -574,6 +586,7 @@ export function PortalApp({
         updated = data.member;
       }
       setMembers((rows) => rows.map((member) => member.id === updated.id ? updated : member));
+      if(editingIsChief)setChiefMemberId(updated.id);else if(chiefMemberId===updated.id)setChiefMemberId("");
       setEditingMember(null);
       setNotice(`${updated.first_name} ${updated.last_name} updated`);
     } catch (error) {
@@ -581,6 +594,25 @@ export function PortalApp({
     } finally {
       setBusy(false);
     }
+  }
+  async function addDepartmentRole(){
+    const name=window.prompt("Role name (for example, Captain or Quartermaster)");if(!name?.trim())return;
+    const raw=window.prompt("Portal access: member, manager, or admin","member")?.trim().toLowerCase();
+    if(!raw||!["member","manager","admin"].includes(raw))return setNotice("Portal access must be member, manager, or admin");
+    const description=window.prompt("Short role description (optional)")||null;
+    setBusy(true);try{
+      let role={id:crypto.randomUUID(),department_id:context.department.id,name:name.trim(),description,portal_access:raw as "member"|"manager"|"admin"};
+      if(!context.demo){const response=await fetch("/api/roles",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({name,description,portalAccess:raw})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Role creation failed");role=data.role}
+      setDepartmentRoles(rows=>[...rows,role].sort((a,b)=>a.name.localeCompare(b.name)));setNotice(`${role.name} role created`);
+    }catch(error){setNotice(error instanceof Error?error.message:"Role creation failed")}finally{setBusy(false)}
+  }
+  async function attributeItem(lineItemId:string){
+    if(!orderDetail?.historicalOrderId||!attributionMemberId)return setNotice("Choose a member first");
+    setBusy(true);try{
+      if(!context.demo){const response=await fetch("/api/allowances/attribute-item",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({historicalOrderId:orderDetail.historicalOrderId,lineItemId,memberId:attributionMemberId})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Attribution failed")}
+      setOrderDetail(detail=>detail?{...detail,attributedLineItemIds:[...(detail.attributedLineItemIds||[]),lineItemId]}:detail);
+      setNotice("Item attributed and allowance updated");router.refresh();
+    }catch(error){setNotice(error instanceof Error?error.message:"Attribution failed")}finally{setBusy(false)}
   }
   async function resetAllowances() {
     if (
@@ -1016,16 +1048,16 @@ export function PortalApp({
           eyebrow="Roster management"
           title="Department members"
           subtitle="Shopify B2B contacts and manually managed members"
-          action={
-            <button
+          action={<div className="row-actions"><button className="button button-light" disabled={busy} onClick={addDepartmentRole}>+ Define role</button><button
               className="button button-dark"
               disabled={busy}
               onClick={addMember}
-            >
-              + Add member
-            </button>
-          }
+            >+ Add member</button></div>}
         />
+        <div className="integration-grid role-summary-grid">
+          <section className="card"><SectionHead title="Department chief"/><div className="person">{(()=>{const chief=members.find(member=>member.id===chiefMemberId);return chief?<><span>{chief.first_name[0]}{chief.last_name[0]}</span><div><b>{chief.first_name} {chief.last_name}</b><small>{chief.rank||"Department administrator"} · Full access</small></div></>:<div><b>No chief assigned</b><small>Edit a member to designate the department chief.</small></div>})()}</div></section>
+          <section className="card"><SectionHead title="Defined roles"/><div className="check-list">{departmentRoles.length?departmentRoles.map(role=><span key={role.id}><ShieldCheck/><b>{role.name}</b> · {role.portal_access} access</span>):<span><AlertTriangle/>No custom roles yet</span>}</div></section>
+        </div>
         <div className="search-box standalone">
           <Search size={17} />
           <input
@@ -1099,7 +1131,7 @@ export function PortalApp({
                       </b>
                     </td>
                     <td className="right">
-                      <button className="icon-action" onClick={() => setEditingMember({ ...member })} aria-label={`Edit ${member.first_name} ${member.last_name}`}>
+                      <button className="icon-action" onClick={() => {setEditingMember({ ...member });setEditingIsChief(chiefMemberId===member.id)}} aria-label={`Edit ${member.first_name} ${member.last_name}`}>
                         <Pencil size={15} /> Edit
                       </button>
                     </td>
@@ -1574,6 +1606,7 @@ export function PortalApp({
               className={tab === key ? "active" : ""}
               onClick={() => {
                 setTab(String(key));
+                if(mode==="manager"&&(key==="approvals"||key==="orders"))router.refresh();
                 setMobileOpen(false);
               }}
             >
@@ -1792,7 +1825,9 @@ export function PortalApp({
               <label>Station<input value={editingMember.station||""} onChange={(event)=>setEditingMember({...editingMember,station:event.target.value})} /></label>
               <label>Platoon / shift<input value={editingMember.platoon||""} onChange={(event)=>setEditingMember({...editingMember,platoon:event.target.value})} /></label>
               <label>Portal role<select value={editingMember.role} onChange={(event)=>setEditingMember({...editingMember,role:event.target.value as PortalContext["member"]["role"]})}><option value="member">Member</option><option value="manager">Manager</option><option value="admin">Department admin</option></select></label>
+              <label>Department role<select value={editingMember.department_role_id||""} onChange={(event)=>{const role=departmentRoles.find(item=>item.id===event.target.value);setEditingMember({...editingMember,department_role_id:event.target.value||null,role:role?.portal_access||editingMember.role})}}><option value="">No custom role</option>{departmentRoles.map(role=><option key={role.id} value={role.id}>{role.name} · {role.portal_access}</option>)}</select></label>
               <label>Status<select value={editingMember.status} onChange={(event)=>setEditingMember({...editingMember,status:event.target.value as PortalContext["member"]["status"]})}><option value="active">Active</option><option value="leave">On leave</option><option value="inactive">Inactive</option></select></label>
+              <label className="wide chief-toggle"><input type="checkbox" checked={editingIsChief} onChange={(event)=>{setEditingIsChief(event.target.checked);setEditingMember({...editingMember,role:event.target.checked?"admin":editingMember.role})}}/> Designate as department chief (grants admin access)</label>
             </div>
             <footer><button className="button button-dark" disabled={busy||!editingMember.first_name.trim()||!editingMember.last_name.trim()||!editingMember.email.trim()} onClick={saveMember}>{busy?"Saving…":"Save member"}</button></footer>
           </aside>
@@ -1815,10 +1850,11 @@ export function PortalApp({
               </div>
               <div className="order-line-list">
                 <h3>Line items <span>{orderDetail.lineItems.reduce((sum,item)=>sum+item.quantity,0)} items</span></h3>
+                {mode==="manager"&&orderDetail.historicalOrderId&&!orderDetail.allowanceAccounted?<label className="attribution-control">Attribute selected items to<select value={attributionMemberId} onChange={event=>setAttributionMemberId(event.target.value)}><option value="">Choose a member</option>{members.filter(member=>member.status==="active").map(member=><option key={member.id} value={member.id}>{member.first_name} {member.last_name}</option>)}</select><small>Original merchandise value is charged, including Shopify discounts.</small></label>:null}
                 {orderDetail.lineItems.map(item=><article key={item.id}>
                   <div className="order-line-image" style={item.imageUrl?{backgroundImage:`url(${item.imageUrl})`}:undefined}>{item.imageUrl?null:<Package/>}</div>
                   <div><b>{item.name}</b><span>{[item.variantTitle,item.sku].filter(Boolean).join(" · ")||"Standard item"}</span>{item.properties.length>0?<small>{item.properties.map(property=>`${property.key}: ${property.value}`).join(" · ")}</small>:null}</div>
-                  <div><span>{item.quantity} × {money(item.unitPrice)}</span><b>{money(item.lineTotal)}</b></div>
+                  <div><span>{item.quantity} × {money(item.unitPrice)}</span><b>{money(item.lineTotal)}</b>{mode==="manager"&&orderDetail.historicalOrderId&&!orderDetail.allowanceAccounted?<button className="attribute-button" disabled={busy||!attributionMemberId||(orderDetail.attributedLineItemIds||[]).includes(item.id)} onClick={()=>attributeItem(item.id)}>{(orderDetail.attributedLineItemIds||[]).includes(item.id)?"Applied":"Apply allowance"}</button>:null}</div>
                 </article>)}
               </div>
               <footer className="order-total-breakdown">

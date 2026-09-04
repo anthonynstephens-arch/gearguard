@@ -1622,6 +1622,14 @@ h1 {
   letter-spacing: normal;
   text-transform: none;
 }
+.chief-toggle { display:flex !important; flex-direction:row !important; align-items:center; gap:10px; padding:12px; border:1px solid var(--line); border-radius:10px; background:#f8fafc; }
+.chief-toggle input { width:17px; height:17px; margin:0; }
+.role-summary-grid { margin-bottom:18px; }
+.attribution-control { display:grid; gap:7px; padding:13px; margin-bottom:8px; border:1px solid #bfdbfe; border-radius:10px; background:#eff6ff; color:#1e3a5f; font-size:12px; font-weight:800; }
+.attribution-control select { border:1px solid #bfdbfe; border-radius:8px; padding:9px 10px; background:white; }
+.attribution-control small { color:#52677d; font-weight:600; }
+.attribute-button { border:1px solid #bfdbfe; background:#eff6ff; color:#1d4ed8; padding:6px 8px; border-radius:7px; font-size:10px; font-weight:800; }
+.attribute-button:disabled { opacity:.55; }
 .member-editor footer {
   padding: 18px 20px;
   border-top: 1px solid var(--line);

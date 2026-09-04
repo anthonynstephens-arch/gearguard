@@ -22,6 +22,8 @@ const updateSchema = z.object({
   station: z.string().trim().max(100).nullable(),
   platoon: z.string().trim().max(100).nullable(),
   role: z.enum(["member", "manager", "admin"]),
+  departmentRoleId: z.string().uuid().nullable(),
+  isChief: z.boolean(),
   status: z.enum(["active", "inactive", "leave"]),
 });
 
@@ -105,12 +107,6 @@ export async function PATCH(request: Request) {
       .eq("department_id", departmentId)
       .single();
     if (existing.error) throw new ApiError("Member not found", 404);
-    if (
-      !isPlatformOwner &&
-      manager.id === body.id &&
-      (body.status !== "active" || body.role === "member")
-    )
-      throw new ApiError("You cannot remove your own manager access");
     const duplicate = await admin
       .from("members")
       .select("id")
@@ -121,6 +117,14 @@ export async function PATCH(request: Request) {
     if (duplicate.error) throw duplicate.error;
     if (duplicate.data)
       throw new ApiError("A member with that email already exists", 409);
+    let portalRole=body.role;
+    if(body.departmentRoleId){
+      const customRole=await admin.from("department_roles").select("portal_access").eq("id",body.departmentRoleId).eq("department_id",departmentId).single();
+      if(customRole.error)throw new ApiError("Department role not found",404);
+      portalRole=customRole.data.portal_access;
+    }
+    if(body.isChief)portalRole="admin";
+    if(!isPlatformOwner&&manager.id===body.id&&(body.status!=="active"||portalRole==="member"))throw new ApiError("You cannot remove your own manager access");
     if (existing.data.auth_user_id) {
       const authUpdate = await admin.auth.admin.updateUserById(
         existing.data.auth_user_id,
@@ -139,7 +143,8 @@ export async function PATCH(request: Request) {
         rank: body.rank || null,
         station: body.station || null,
         platoon: body.platoon || null,
-        role: body.role,
+        role: portalRole,
+        department_role_id: body.departmentRoleId,
         status: body.status,
         updated_at: new Date().toISOString(),
       })
@@ -148,6 +153,15 @@ export async function PATCH(request: Request) {
       .select()
       .single();
     if (updated.error) throw updated.error;
+    const department=await admin.from("departments").select("chief_member_id").eq("id",departmentId).single();
+    if(department.error)throw department.error;
+    if(body.isChief){
+      const chief=await admin.from("departments").update({chief_member_id:body.id}).eq("id",departmentId);
+      if(chief.error)throw chief.error;
+    }else if(department.data.chief_member_id===body.id){
+      const cleared=await admin.from("departments").update({chief_member_id:null}).eq("id",departmentId);
+      if(cleared.error)throw cleared.error;
+    }
     return Response.json({ member: updated.data });
   } catch (error) {
     return apiFailure(error);

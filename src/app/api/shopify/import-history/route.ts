@@ -1,7 +1,7 @@
 import { apiFailure, ApiError, requireAppMember } from "@/lib/api-auth";
 import { APP_SCOPES_QUERY, COMPANY_ORDERS_QUERY, shopifyGraphQL } from "@/lib/shopify";
 
-type OrderPage={company:{orders:{pageInfo:{hasNextPage:boolean;endCursor:string|null};nodes:Array<{id:string;name:string;createdAt:string;cancelledAt?:string|null;currentSubtotalPriceSet:{shopMoney:{amount:string;currencyCode:string}};purchasingEntity?:{contact?:{id:string;customer?:{id:string;defaultEmailAddress?:{emailAddress:string}|null}|null}|null}|null}>}}|null};
+type OrderPage={company:{orders:{pageInfo:{hasNextPage:boolean;endCursor:string|null};nodes:Array<{id:string;name:string;createdAt:string;cancelledAt?:string|null;currentSubtotalPriceSet:{shopMoney:{amount:string;currencyCode:string}};currentTotalDiscountsSet:{shopMoney:{amount:string;currencyCode:string}};purchasingEntity?:{contact?:{id:string;customer?:{id:string;firstName?:string|null;lastName?:string|null;defaultEmailAddress?:{emailAddress:string}|null}|null}|null}|null}>}}|null};
 
 export const maxDuration=60;
 
@@ -36,14 +36,20 @@ export async function POST(){
         const contact=order.purchasingEntity?.contact;
         const email=contact?.customer?.defaultEmailAddress?.emailAddress?.toLowerCase();
         const member=(contact?.id&&memberByContact.get(contact.id))||(contact?.customer?.id&&memberByCustomer.get(contact.customer.id))||(email&&memberByEmail.get(email));
-        if(!member){unmatched++;continue}
+        const purchaserName=[contact?.customer?.firstName,contact?.customer?.lastName].filter(Boolean).join(" ")||email||"Unassigned purchaser";
+        const amount=Number((Number(order.currentSubtotalPriceSet.shopMoney.amount)+Number(order.currentTotalDiscountsSet.shopMoney.amount)).toFixed(2));
+        if(!member){
+          unmatched++;
+          const saved=await admin.from("shopify_order_imports").upsert({department_id:departmentId,member_id:null,account_id:null,shopify_order_id:order.id,shopify_order_name:order.name,order_created_at:order.createdAt,order_amount:amount,allowance_deducted:0,purchaser_name:purchaserName,allowance_accounted:false},{onConflict:"department_id,shopify_order_id",ignoreDuplicates:true});
+          if(saved.error)throw saved.error;
+          continue
+        }
         const account=await admin.from("allowance_accounts").select("id").eq("member_id",member.id).single();
         if(account.error)throw account.error;
-        const amount=Number(order.currentSubtotalPriceSet.shopMoney.amount);
         const result=await admin.rpc("gg_import_shopify_order",{p_account_id:account.data.id,p_shopify_order_id:order.id,p_shopify_order_name:order.name,p_order_created_at:order.createdAt,p_amount:amount});
         if(result.error)throw result.error;
-        const value=result.data as {imported:boolean;deducted:number};
-        if(value.imported){imported++;amountDeducted+=Number(value.deducted||0)}else duplicates++;
+        const value=result.data as {imported:boolean;adjusted?:boolean;deducted:number};
+        if(value.imported){imported++;amountDeducted+=Number(value.deducted||0)}else if(value.adjusted){amountDeducted+=Number(value.deducted||0)}else duplicates++;
       }
       after=!finished&&page.company.orders.pageInfo.hasNextPage?page.company.orders.pageInfo.endCursor:null;
     }while(after);

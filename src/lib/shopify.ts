@@ -35,7 +35,23 @@ query GearGuardCollections($first:Int!,$after:String){collections(first:$first,a
 export const COLLECTION_PRODUCTS_QUERY=`#graphql
 query GearGuardCollectionProducts($id:ID!,$first:Int!,$after:String){collection(id:$id){id title handle updatedAt image{url} products(first:$first,after:$after,sortKey:TITLE){pageInfo{hasNextPage endCursor}nodes{id title handle descriptionHtml vendor productType tags status featuredImage{url} variants(first:100){nodes{id title sku price inventoryQuantity availableForSale selectedOptions{name value}}}}}}}`;
 export const COMPANY_ORDERS_QUERY=`#graphql
-query GearGuardCompanyOrders($id:ID!,$first:Int!,$after:String){company(id:$id){orders(first:$first,after:$after,sortKey:CREATED_AT,reverse:true){pageInfo{hasNextPage endCursor}nodes{id name createdAt cancelledAt currentSubtotalPriceSet{shopMoney{amount currencyCode}}purchasingEntity{... on PurchasingCompany{contact{id customer{id defaultEmailAddress{emailAddress}}}}}}}}}}`;
+query GearGuardCompanyOrders($id:ID!,$first:Int!,$after:String){
+  company(id:$id){
+    orders(first:$first,after:$after,sortKey:CREATED_AT,reverse:true){
+      pageInfo{hasNextPage endCursor}
+      nodes{
+        id name createdAt cancelledAt
+        currentSubtotalPriceSet{shopMoney{amount currencyCode}}
+        currentTotalDiscountsSet{shopMoney{amount currencyCode}}
+        purchasingEntity{
+          ... on PurchasingCompany{
+            contact{id customer{id firstName lastName defaultEmailAddress{emailAddress}}}
+          }
+        }
+      }
+    }
+  }
+}`;
 export const APP_SCOPES_QUERY=`#graphql
 query GearGuardAppScopes{currentAppInstallation{accessScopes{handle}}}`;
 export const ORDER_DETAIL_QUERY=`#graphql

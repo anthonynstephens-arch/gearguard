@@ -1,7 +1,9 @@
 import { apiFailure,requireAppMember } from "@/lib/api-auth";
 import { shopifyGraphQL } from "@/lib/shopify";
-const LIST=`#graphql query GearGuardWebhooks($first:Int!){webhookSubscriptions(first:$first){nodes{id topic uri}}}`;
-const CREATE=`#graphql mutation GearGuardWebhook($topic:WebhookSubscriptionTopic!,$webhookSubscription:WebhookSubscriptionInput!){webhookSubscriptionCreate(topic:$topic,webhookSubscription:$webhookSubscription){webhookSubscription{id topic uri}userErrors{field message}}}`;
+const LIST=`#graphql
+query GearGuardWebhooks($first:Int!){webhookSubscriptions(first:$first){nodes{id topic uri}}}`;
+const CREATE=`#graphql
+mutation GearGuardWebhook($topic:WebhookSubscriptionTopic!,$webhookSubscription:WebhookSubscriptionInput!){webhookSubscriptionCreate(topic:$topic,webhookSubscription:$webhookSubscription){webhookSubscription{id topic uri}userErrors{field message}}}`;
 const topics=["ORDERS_CREATE","ORDERS_UPDATED","ORDERS_CANCELLED","REFUNDS_CREATE","FULFILLMENTS_CREATE"];
 function webhookUri(request:Request,callbackUrl:unknown){
   const appUrl=process.env.NEXT_PUBLIC_APP_URL?.trim();
