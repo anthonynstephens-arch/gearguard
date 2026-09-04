@@ -3,6 +3,8 @@ import { APP_SCOPES_QUERY, COMPANY_ORDERS_QUERY, shopifyGraphQL } from "@/lib/sh
 
 type OrderPage={company:{orders:{pageInfo:{hasNextPage:boolean;endCursor:string|null};nodes:Array<{id:string;name:string;createdAt:string;cancelledAt?:string|null;currentSubtotalPriceSet:{shopMoney:{amount:string;currencyCode:string}};purchasingEntity?:{contact?:{id:string;customer?:{id:string;defaultEmailAddress?:{emailAddress:string}|null}|null}|null}|null}>}}|null};
 
+export const maxDuration=60;
+
 export async function POST(){
   try{
     const {admin,departmentId}=await requireAppMember(true);
