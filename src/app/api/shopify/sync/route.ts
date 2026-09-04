@@ -63,6 +63,9 @@ type CollectionProductsPage = {
   } | null;
 };
 
+export const maxDuration=60;
+const chunks=<T,>(items:T[],size:number)=>Array.from({length:Math.ceil(items.length/size)},(_,index)=>items.slice(index*size,(index+1)*size));
+
 export async function POST() {
   try {
     const { admin, departmentId } = await requireAppMember(true);
@@ -212,63 +215,23 @@ export async function POST() {
         collection_id: string;
       }> = [];
 
-      for (const product of products) {
-        const variants = product.variants.nodes.map((variant) => ({
-          id: variant.id,
-          title: variant.title,
-          sku: variant.sku || "",
-          price: Number(variant.price),
-          inventory_quantity: variant.inventoryQuantity,
-          available: variant.availableForSale,
-          selected_options: variant.selectedOptions,
-        }));
-        if (!variants.length || product.status !== "ACTIVE") continue;
-        const existing = await admin
-          .from("products")
-          .select("*")
-          .eq("shopify_product_id", product.id)
-          .maybeSingle();
-        if (existing.error) throw existing.error;
-        const payload = {
-          title: product.title,
-          description: stripHtml(product.descriptionHtml || ""),
-          category: existing.data?.category || inferCategory(product),
-          image_url:
-            product.featuredImage?.url ||
-            existing.data?.image_url ||
-            null,
-          price: Math.min(...variants.map((item) => item.price)),
-          allowance_eligible: existing.data?.allowance_eligible ?? true,
-          approval_required: existing.data?.approval_required ?? false,
-          active: true,
-          shopify_product_id: product.id,
-          shopify_handle: product.handle,
-          shopify_vendor: product.vendor,
-          shopify_product_type: product.productType,
-          shopify_tags: product.tags,
-          variants,
-          shopify_synced_at: new Date().toISOString(),
-        };
-        const saved = existing.data
-          ? await admin
-              .from("products")
-              .update(payload)
-              .eq("id", existing.data.id)
-              .select("id")
-              .single()
-          : await admin.from("products").insert(payload).select("id").single();
-        if (saved.error) throw saved.error;
-        syncedProductIds.add(saved.data.id);
-        productMemberships.push({
-          product_id: saved.data.id,
-          collection_id: collectionRow.id,
+      const activeProducts=products.filter(product=>product.status==="ACTIVE"&&product.variants.nodes.length>0);
+      for(const batch of chunks(activeProducts,50)){
+        const existing=await admin.from("products").select("*").in("shopify_product_id",batch.map(product=>product.id));
+        if(existing.error)throw existing.error;
+        const existingByShopifyId=new Map((existing.data||[]).map(product=>[product.shopify_product_id,product]));
+        const payloads=batch.map(product=>{
+          const previous=existingByShopifyId.get(product.id);
+          const variants=product.variants.nodes.map(variant=>({id:variant.id,title:variant.title,sku:variant.sku||"",price:Number(variant.price),inventory_quantity:variant.inventoryQuantity,available:variant.availableForSale,selected_options:variant.selectedOptions}));
+          return{title:product.title,description:stripHtml(product.descriptionHtml||""),category:previous?.category||inferCategory(product),image_url:product.featuredImage?.url||previous?.image_url||null,price:Math.min(...variants.map(item=>item.price)),allowance_eligible:previous?.allowance_eligible??true,approval_required:previous?.approval_required??false,active:true,shopify_product_id:product.id,shopify_handle:product.handle,shopify_vendor:product.vendor,shopify_product_type:product.productType,shopify_tags:product.tags,variants,shopify_synced_at:new Date().toISOString()};
         });
+        const saved=await admin.from("products").upsert(payloads,{onConflict:"shopify_product_id"}).select("id,shopify_product_id");
+        if(saved.error)throw saved.error;
+        for(const product of saved.data||[]){syncedProductIds.add(product.id);productMemberships.push({product_id:product.id,collection_id:collectionRow.id})}
       }
-      if (productMemberships.length) {
-        const linked = await admin
-          .from("product_shopify_collections")
-          .insert(productMemberships);
-        if (linked.error) throw linked.error;
+      for(const batch of chunks(productMemberships,500)){
+        const linked=await admin.from("product_shopify_collections").upsert(batch,{onConflict:"product_id,collection_id",ignoreDuplicates:true});
+        if(linked.error)throw linked.error;
       }
     }
 
