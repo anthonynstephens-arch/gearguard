@@ -1,0 +1,4 @@
+import { z } from "zod";
+import { apiFailure, requireAppMember } from "@/lib/api-auth";
+const schema=z.object({amount:z.number().min(0).max(100000)});
+export async function POST(request:Request){try{const body=schema.parse(await request.json());const {member:manager,admin,departmentId}=await requireAppMember(true);const accounts=await admin.from("allowance_accounts").select("id").eq("department_id",departmentId);if(accounts.error)throw accounts.error;for(const account of accounts.data){const result=await admin.rpc("gg_assign_annual_allowance",{p_account_id:account.id,p_amount:body.amount,p_reason:"Department annual allowance assignment",p_manager_id:manager.id});if(result.error)throw result.error}return Response.json({success:true,assigned:accounts.data.length,amount:body.amount})}catch(error){return apiFailure(error)}}

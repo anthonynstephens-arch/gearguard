@@ -1,7 +1,7 @@
 import { apiFailure, ApiError, requireAppMember } from "@/lib/api-auth";
-import { COMPANY_CONTACT_ORDERS_QUERY, shopifyGraphQL } from "@/lib/shopify";
+import { APP_SCOPES_QUERY, CUSTOMER_ORDERS_QUERY, shopifyGraphQL } from "@/lib/shopify";
 
-type OrderPage={companyContact:{orders:{pageInfo:{hasNextPage:boolean;endCursor:string|null};nodes:Array<{id:string;name:string;createdAt:string;cancelledAt?:string|null;currentSubtotalPriceSet:{shopMoney:{amount:string;currencyCode:string}}}>}}|null};
+type OrderPage={customer:{orders:{pageInfo:{hasNextPage:boolean;endCursor:string|null};nodes:Array<{id:string;name:string;createdAt:string;cancelledAt?:string|null;currentSubtotalPriceSet:{shopMoney:{amount:string;currencyCode:string}}}>}}|null};
 
 export async function POST(){
   try{
@@ -9,7 +9,9 @@ export async function POST(){
     const department=await admin.from("departments").select("shopify_company_id").eq("id",departmentId).single();
     if(department.error)throw department.error;
     if(!department.data.shopify_company_id)throw new ApiError("Connect a Shopify B2B company first");
-    const members=await admin.from("members").select("id,shopify_company_contact_id").eq("department_id",departmentId).not("shopify_company_contact_id","is",null);
+    const scopes=await shopifyGraphQL<{currentAppInstallation:{accessScopes:Array<{handle:string}>}}>(APP_SCOPES_QUERY);
+    const fullHistory=scopes.currentAppInstallation.accessScopes.some(scope=>scope.handle==="read_all_orders");
+    const members=await admin.from("members").select("id,shopify_customer_id").eq("department_id",departmentId).not("shopify_customer_id","is",null);
     if(members.error)throw members.error;
     const cutoff=new Date();cutoff.setUTCMonth(cutoff.getUTCMonth()-6);
     let imported=0,duplicates=0,ordersFound=0,amountDeducted=0;
@@ -18,9 +20,9 @@ export async function POST(){
       if(account.error)throw account.error;
       let after:string|null=null,finished=false;
       do{
-        const page:OrderPage=await shopifyGraphQL<OrderPage>(COMPANY_CONTACT_ORDERS_QUERY,{id:member.shopify_company_contact_id,first:100,after});
-        if(!page.companyContact)break;
-        for(const order of page.companyContact.orders.nodes){
+        const page:OrderPage=await shopifyGraphQL<OrderPage>(CUSTOMER_ORDERS_QUERY,{id:member.shopify_customer_id,first:100,after});
+        if(!page.customer)break;
+        for(const order of page.customer.orders.nodes){
           const created=new Date(order.createdAt);
           if(created<cutoff){finished=true;break}
           if(order.cancelledAt)continue;
@@ -31,9 +33,9 @@ export async function POST(){
           const value=result.data as {imported:boolean;deducted:number};
           if(value.imported){imported++;amountDeducted+=Number(value.deducted||0)}else duplicates++;
         }
-        after=!finished&&page.companyContact.orders.pageInfo.hasNextPage?page.companyContact.orders.pageInfo.endCursor:null;
+        after=!finished&&page.customer.orders.pageInfo.hasNextPage?page.customer.orders.pageInfo.endCursor:null;
       }while(after);
     }
-    return Response.json({success:true,membersScanned:members.data.length,ordersFound,imported,duplicates,amountDeducted:Number(amountDeducted.toFixed(2)),cutoff:cutoff.toISOString()});
+    return Response.json({success:true,membersScanned:members.data.length,ordersFound,imported,duplicates,amountDeducted:Number(amountDeducted.toFixed(2)),cutoff:cutoff.toISOString(),fullHistory,warning:fullHistory?null:"Shopify has not granted read_all_orders, so only the most recent 60 days were available."});
   }catch(error){return apiFailure(error)}
 }

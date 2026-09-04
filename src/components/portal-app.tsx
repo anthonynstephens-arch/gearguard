@@ -268,7 +268,7 @@ export function PortalApp({
       const response=await fetch("/api/shopify/import-history",{method:"POST"});
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||"Purchase history import failed");
-      setNotice(`${data.imported} orders imported for ${data.membersScanned} members; ${money(data.amountDeducted)} deducted from available balances`);
+      setNotice(`${data.imported} orders imported for ${data.membersScanned} members; ${money(data.amountDeducted)} deducted from available balances${data.warning?` — ${data.warning}`:""}`);
       router.refresh();
     }catch(error){setNotice(error instanceof Error?error.message:"Purchase history import failed")}finally{setBusy(false)}
   }
@@ -560,6 +560,15 @@ export function PortalApp({
     } finally {
       setBusy(false);
     }
+  }
+  async function assignAllAllowances(){
+    const raw=window.prompt("Annual allowance to assign to every member","500");if(raw===null)return;
+    const amount=Number(raw);if(!Number.isFinite(amount)||amount<0)return setNotice("Enter a valid allowance");
+    if(!window.confirm(`Assign ${money(amount)} annually to all ${accounts.length} members? Imported purchases will remain deducted.`))return;
+    setBusy(true);try{if(!context.demo){const response=await fetch("/api/allowances/assign-all",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({amount})});const data=await response.json();if(!response.ok)throw new Error(data.error||"Allowance assignment failed")}
+      setAccounts(rows=>rows.map(account=>({...account,annual_amount:amount,current_balance:Math.max(account.reserved_amount,amount-account.spent_amount)})));
+      setNotice(`${money(amount)} annual allowance assigned to ${accounts.length} members`);router.refresh();
+    }catch(error){setNotice(error instanceof Error?error.message:"Allowance assignment failed")}finally{setBusy(false)}
   }
   async function signOut() {
     setBusy(true);
@@ -1016,15 +1025,7 @@ export function PortalApp({
           eyebrow="Financial controls"
           title="Allowance management"
           subtitle="Assign balances and preserve an auditable transaction history"
-          action={
-            <button
-              className="button button-dark"
-              disabled={busy}
-              onClick={resetAllowances}
-            >
-              Reset annual allowances
-            </button>
-          }
+          action={<div className="row-actions"><button className="button button-dark" disabled={busy} onClick={assignAllAllowances}>Set all annual allowances</button><button className="button button-light" disabled={busy} onClick={resetAllowances}>Reset annual allowances</button></div>}
         />
         <section className="card table-card">
           <table>
