@@ -783,14 +783,16 @@ export function PortalApp({
     );
   }
   function ManagerOverview() {
-    const remaining = accounts.reduce(
+    const allocated = accounts.reduce(
+        (sum, account) => sum + account.annual_amount,
+        0,
+      ),
+      remaining = accounts.reduce(
         (sum, account) =>
           sum + Math.max(0, account.current_balance - account.reserved_amount),
         0,
       ),
-      reserved = accounts.reduce((sum, account) => sum + account.reserved_amount, 0),
-      spent = accounts.reduce((sum, account) => sum + account.spent_amount, 0),
-      allocated = spent + remaining + reserved;
+      spent = accounts.reduce((sum, account) => sum + account.spent_amount, 0);
     const utilization=allocated>0?(spent/allocated)*100:0;
     const healthRows=members.map(member=>{const account=accounts.find(item=>item.member_id===member.id);const annual=account?.annual_amount||0,used=account?.spent_amount||0,reserved=account?.reserved_amount||0,available=Math.max(0,(account?.current_balance||0)-reserved),usedPct=annual>0?Math.min(100,(used/annual)*100):0;const level=annual===0?"unassigned":available===0?"exhausted":usedPct>=80?"low":usedPct>=60?"watch":"healthy";return{member,account,annual,used,reserved,available,usedPct,level}}).sort((a,b)=>b.usedPct-a.usedPct||a.member.last_name.localeCompare(b.member.last_name));
     return (
@@ -810,7 +812,7 @@ export function PortalApp({
           <Stat
             label="Allowance allocated"
             value={money(allocated)}
-            meta={`${money(remaining)} available${reserved>0?` · ${money(reserved)} reserved`:""}`}
+            meta={`${money(remaining)} available`}
             icon={WalletCards}
           />
           <Stat
@@ -1007,7 +1009,7 @@ export function PortalApp({
     const allowanceRows=accounts.map(account=>{const member=memberById.get(account.member_id);const available=Math.max(0,account.current_balance-account.reserved_amount);const utilization=account.annual_amount>0?Math.min(100,(account.spent_amount/account.annual_amount)*100):0;return{...account,member,available,utilization}}).sort((a,b)=>b.utilization-a.utilization);
     const managedShopifyNames=new Set(requests.map(order=>order.shopify_order_name).filter(Boolean));
     const orderRows=[...requests.map(order=>({reference:order.shopify_order_name||order.request_number,member:order.member_name,date:order.submitted_at,status:order.status,total:order.total_amount,source:"GearGuard"})),...historicalOrders.filter(order=>!managedShopifyNames.has(order.shopify_order_name)).map(order=>({reference:order.shopify_order_name,member:order.member_name,date:order.order_created_at,status:"IMPORTED",total:order.order_amount,source:"Shopify import"}))].sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());
-    const spent=accounts.reduce((sum,account)=>sum+account.spent_amount,0),remaining=allowanceRows.reduce((sum,row)=>sum+row.available,0),reserved=accounts.reduce((sum,account)=>sum+account.reserved_amount,0),allocated=spent+remaining+reserved,utilization=allocated>0?(spent/allocated)*100:0;
+    const allocated=accounts.reduce((sum,account)=>sum+account.annual_amount,0),spent=accounts.reduce((sum,account)=>sum+account.spent_amount,0),remaining=allowanceRows.reduce((sum,row)=>sum+row.available,0),reserved=accounts.reduce((sum,account)=>sum+account.reserved_amount,0),utilization=allocated>0?(spent/allocated)*100:0;
     const attentionRows=allowanceRows.filter(row=>row.annual_amount===0||row.available<=row.annual_amount*.2||row.member?.status!=="active"||!row.member?.shopify_company_contact_id);
     function downloadReport(){
       const rows=reportView==="allowances"?[["Member","Email","Rank","Annual allowance","Spent","Reserved","Available","Utilization"],...allowanceRows.map(row=>[`${row.member?.first_name||""} ${row.member?.last_name||""}`.trim(),row.member?.email||"",row.member?.rank||"",row.annual_amount,row.spent_amount,row.reserved_amount,row.available,`${row.utilization.toFixed(1)}%`])]:reportView==="orders"?[["Order","Member","Date","Status","Source","Total"],...orderRows.map(row=>[row.reference,row.member,row.date,row.status,row.source,row.total])]:[["Member","Issue","Available","Annual allowance","Shopify linked","Status"],...attentionRows.map(row=>[`${row.member?.first_name||""} ${row.member?.last_name||""}`.trim(),row.annual_amount===0?"No allowance assigned":row.available<=row.annual_amount*.2?"Low balance":row.member?.status!=="active"?"Member not active":"Not linked to Shopify",row.available,row.annual_amount,row.member?.shopify_company_contact_id?"Yes":"No",row.member?.status||""])];
