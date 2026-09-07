@@ -66,7 +66,9 @@ query GearGuardOrderLineItems($id:ID!,$first:Int!,$after:String){
 export const APP_SCOPES_QUERY=`#graphql
 query GearGuardAppScopes{currentAppInstallation{accessScopes{handle}}}`;
 export const ORDER_DETAIL_QUERY=`#graphql
-query GearGuardOrderDetail($id:ID!){order(id:$id){id name displayFinancialStatus displayFulfillmentStatus lineItems(first:100){nodes{id name quantity sku variantTitle originalUnitPriceSet{shopMoney{amount currencyCode}}originalTotalSet{shopMoney{amount currencyCode}}image{url altText}customAttributes{key value}}}}}`;
+query GearGuardOrderDetail($id:ID!,$first:Int!,$after:String){order(id:$id){id name displayFinancialStatus displayFulfillmentStatus lineItems(first:$first,after:$after){pageInfo{hasNextPage endCursor}nodes{id name quantity sku variantTitle originalUnitPriceSet{shopMoney{amount currencyCode}}originalTotalSet{shopMoney{amount currencyCode}}image{url altText}customAttributes{key value}}}}}`;
+export const ORDER_LINE_ITEM_DETAILS_QUERY=`#graphql
+query GearGuardOrderLineItemDetails($id:ID!,$first:Int!,$after:String){order(id:$id){lineItems(first:$first,after:$after){pageInfo{hasNextPage endCursor}nodes{id name quantity sku variantTitle originalUnitPriceSet{shopMoney{amount currencyCode}}originalTotalSet{shopMoney{amount currencyCode}}image{url altText}customAttributes{key value}}}}}`;
 const CREATE_DRAFT=`#graphql
 mutation GearGuardDraftOrder($input:DraftOrderInput!){draftOrderCreate(input:$input){draftOrder{id name invoiceUrl status totalPriceSet{shopMoney{amount currencyCode}}}userErrors{field message}}}`;
 export async function createDraftOrder({request,items,member,department,allowanceAmount}:{request:Record<string,unknown>;items:Array<Record<string,unknown>>;member:Record<string,unknown>;department:Record<string,unknown>;allowanceAmount:number}){
