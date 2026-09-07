@@ -119,6 +119,18 @@ export function PortalApp({
     setCollectionOptions(context.collections.map((collection)=>({id:collection.shopify_collection_id,title:collection.title,handle:collection.handle,updatedAt:collection.shopify_synced_at||new Date().toISOString(),imageUrl:collection.image_url,selected:true})));
   },[context]);
   useEffect(()=>{
+    if(mode!=="manager"||context.demo||!context.department.shopify_company_id)return;
+    const syncKey=`gearguard-order-reconciliation:${context.department.id}`;
+    if(window.sessionStorage.getItem(syncKey))return;
+    window.sessionStorage.setItem(syncKey,"running");
+    let active=true;
+    void fetch("/api/shopify/import-history",{method:"POST"})
+      .then(async response=>{const data=await response.json();if(!response.ok)throw new Error(data.error||"Automatic order reconciliation failed");return data})
+      .then(data=>{window.sessionStorage.setItem(syncKey,"complete");if(active){setNotice(`Shopify allowances updated: ${data.imported||0} new and ${data.adjusted||0} corrected`);router.refresh()}})
+      .catch(error=>{window.sessionStorage.removeItem(syncKey);if(active)setNotice(error instanceof Error?error.message:"Automatic order reconciliation failed")});
+    return()=>{active=false};
+  },[mode,context.demo,context.department.id,context.department.shopify_company_id,router]);
+  useEffect(()=>{
     if(mode!=="manager"||context.demo)return;
     const refresh=()=>router.refresh();
     window.addEventListener("focus",refresh);
