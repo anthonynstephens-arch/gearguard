@@ -9,6 +9,14 @@ const schema = z.object({
   firstName: z.string().trim().min(1).max(100),
   lastName: z.string().trim().min(1).max(100),
   annualAllowance: z.number().min(0).max(100000),
+  employeeId: z.string().trim().max(100).nullable().optional(),
+  badgeNumber: z.string().trim().max(100).nullable().optional(),
+  rank: z.string().trim().max(100).nullable().optional(),
+  station: z.string().trim().max(100).nullable().optional(),
+  platoon: z.string().trim().max(100).nullable().optional(),
+  role: z.enum(["member", "manager", "admin"]).default("member"),
+  departmentRoleId: z.string().uuid().nullable().optional(),
+  status: z.enum(["active", "inactive", "leave"]).default("active"),
 });
 
 const updateSchema = z.object({
@@ -39,6 +47,12 @@ export async function POST(request: Request) {
       .maybeSingle();
     if (duplicate.data)
       throw new ApiError("A member with that email already exists", 409);
+    let portalRole=body.role;
+    if(body.departmentRoleId){
+      const customRole=await admin.from("department_roles").select("portal_access").eq("id",body.departmentRoleId).eq("department_id",departmentId).single();
+      if(customRole.error)throw new ApiError("Department role not found",404);
+      portalRole=customRole.data.portal_access;
+    }
 
     const created = await admin
       .from("members")
@@ -47,8 +61,14 @@ export async function POST(request: Request) {
         first_name: body.firstName,
         last_name: body.lastName,
         email: body.email,
-        role: "member",
-        status: "active",
+        employee_id: body.employeeId || null,
+        badge_number: body.badgeNumber || null,
+        rank: body.rank || null,
+        station: body.station || null,
+        platoon: body.platoon || null,
+        role: portalRole,
+        department_role_id: body.departmentRoleId || null,
+        status: body.status,
       })
       .select()
       .single();

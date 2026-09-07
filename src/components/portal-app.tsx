@@ -65,6 +65,8 @@ type ShopifyStoreCollection = {
   selected: boolean;
 };
 type OrderDetail={historicalOrderId?:string;allowanceAccounted?:boolean;attributedLineItemIds?:string[];reference:string;shopifyReference?:string|null;memberName:string;date:string;status:string;total:number;allowanceAmount:number;personalAmount:number;source:string;lineItems:Array<{id:string;name:string;variantTitle?:string|null;sku?:string|null;quantity:number;unitPrice:number;lineTotal:number;imageUrl?:string|null;properties:Array<{key:string;value:string}>}>};
+type NewMemberDraft={firstName:string;lastName:string;email:string;annualAllowance:string;employeeId:string;badgeNumber:string;rank:string;station:string;platoon:string;role:"member"|"manager"|"admin";departmentRoleId:string;status:"active"|"inactive"|"leave"};
+const emptyNewMember:NewMemberDraft={firstName:"",lastName:"",email:"",annualAllowance:"0",employeeId:"",badgeNumber:"",rank:"",station:"",platoon:"",role:"member",departmentRoleId:"",status:"active"};
 
 export function PortalApp({
   context,
@@ -85,6 +87,7 @@ export function PortalApp({
   const [accounts, setAccounts] = useState(context.accounts);
   const [members, setMembers] = useState(context.members);
   const [editingMember, setEditingMember] = useState<PortalContext["member"] | null>(null);
+  const [newMember,setNewMember]=useState<NewMemberDraft|null>(null);
   const [editingIsChief,setEditingIsChief]=useState(false);
   const [requests, setRequests] = useState(context.requests);
   const [historicalOrders, setHistoricalOrders] = useState(context.historicalOrders);
@@ -511,13 +514,10 @@ export function PortalApp({
     }
   }
   async function addMember() {
-    const email = window.prompt("Member email address")?.trim().toLowerCase();
-    if (!email) return;
-    const firstName = window.prompt("First name")?.trim();
-    const lastName = window.prompt("Last name")?.trim();
-    if (!firstName || !lastName)
-      return setNotice("First and last name are required");
-    const allowance = Number(window.prompt("Annual allowance", "500") || 0);
+    if(!newMember)return;
+    const email=newMember.email.trim().toLowerCase(),firstName=newMember.firstName.trim(),lastName=newMember.lastName.trim();
+    if(!email||!firstName||!lastName)return setNotice("First name, last name, and email are required");
+    const allowance = Number(newMember.annualAllowance || 0);
     if (!Number.isFinite(allowance) || allowance < 0)
       return setNotice("Enter a valid allowance");
     setBusy(true);
@@ -528,8 +528,14 @@ export function PortalApp({
         first_name: firstName,
         last_name: lastName,
         email,
-        role: "member",
-        status: "active",
+        employee_id:newMember.employeeId||null,
+        badge_number:newMember.badgeNumber||null,
+        rank:newMember.rank||null,
+        station:newMember.station||null,
+        platoon:newMember.platoon||null,
+        role:newMember.role,
+        department_role_id:newMember.departmentRoleId||null,
+        status:newMember.status,
       } as PortalContext["member"];
       let account = {
         id: crypto.randomUUID(),
@@ -549,6 +555,14 @@ export function PortalApp({
             firstName,
             lastName,
             annualAllowance: allowance,
+            employeeId:newMember.employeeId||null,
+            badgeNumber:newMember.badgeNumber||null,
+            rank:newMember.rank||null,
+            station:newMember.station||null,
+            platoon:newMember.platoon||null,
+            role:newMember.role,
+            departmentRoleId:newMember.departmentRoleId||null,
+            status:newMember.status,
           }),
         });
         const data = await response.json();
@@ -559,7 +573,8 @@ export function PortalApp({
       }
       setMembers((rows) => [created, ...rows]);
       setAccounts((rows) => [account, ...rows]);
-      setNotice(`${firstName} ${lastName} added`);
+      setNewMember(null);
+      setNotice(`${firstName} ${lastName} added as a manual customer`);
     } catch (error) {
       setNotice(
         error instanceof Error ? error.message : "Member creation failed",
@@ -1063,8 +1078,8 @@ export function PortalApp({
           action={<div className="row-actions"><button className="button button-light" disabled={busy} onClick={addDepartmentRole}>+ Define role</button><button
               className="button button-dark"
               disabled={busy}
-              onClick={addMember}
-            >+ Add member</button></div>}
+              onClick={()=>setNewMember({...emptyNewMember})}
+            >+ Add customer</button></div>}
         />
         <div className="integration-grid role-summary-grid">
           <section className="card"><SectionHead title="Department chief"/><div className="person">{(()=>{const chief=members.find(member=>member.id===chiefMemberId);return chief?<><span>{chief.first_name[0]}{chief.last_name[0]}</span><div><b>{chief.first_name} {chief.last_name}</b><small>{chief.rank||"Department administrator"} · Full access</small></div></>:<div><b>No chief assigned</b><small>Edit a member to designate the department chief.</small></div>})()}</div></section>
@@ -1816,6 +1831,33 @@ export function PortalApp({
                 <ArrowRight />
               </button>
             </footer>
+          </aside>
+        </div>
+      )}
+      {newMember && (
+        <div className="drawer-wrap">
+          <button className="drawer-backdrop" onClick={() => setNewMember(null)} aria-label="Close customer form" />
+          <aside className="cart-drawer member-editor">
+            <header>
+              <div><small>Roster management</small><h2>Add customer</h2></div>
+              <button onClick={() => setNewMember(null)} aria-label="Close customer form"><X /></button>
+            </header>
+            <div className="member-edit-form">
+              <label>First name<input autoFocus value={newMember.firstName} onChange={(event)=>setNewMember({...newMember,firstName:event.target.value})} /></label>
+              <label>Last name<input value={newMember.lastName} onChange={(event)=>setNewMember({...newMember,lastName:event.target.value})} /></label>
+              <label className="wide">Email<input type="email" value={newMember.email} onChange={(event)=>setNewMember({...newMember,email:event.target.value})} /></label>
+              <label>Starting allowance<input type="number" min="0" step="0.01" value={newMember.annualAllowance} onChange={(event)=>setNewMember({...newMember,annualAllowance:event.target.value})} /></label>
+              <label>Employee ID<input value={newMember.employeeId} onChange={(event)=>setNewMember({...newMember,employeeId:event.target.value})} /></label>
+              <label>Badge number<input value={newMember.badgeNumber} onChange={(event)=>setNewMember({...newMember,badgeNumber:event.target.value})} /></label>
+              <label>Rank / title<input value={newMember.rank} onChange={(event)=>setNewMember({...newMember,rank:event.target.value})} /></label>
+              <label>Station<input value={newMember.station} onChange={(event)=>setNewMember({...newMember,station:event.target.value})} /></label>
+              <label>Platoon / shift<input value={newMember.platoon} onChange={(event)=>setNewMember({...newMember,platoon:event.target.value})} /></label>
+              <label>Portal role<select value={newMember.role} onChange={(event)=>setNewMember({...newMember,role:event.target.value as NewMemberDraft["role"],departmentRoleId:""})}><option value="member">Member</option><option value="manager">Manager</option><option value="admin">Department admin</option></select></label>
+              <label>Department role<select value={newMember.departmentRoleId} onChange={(event)=>{const role=departmentRoles.find(item=>item.id===event.target.value);setNewMember({...newMember,departmentRoleId:event.target.value,role:role?.portal_access||newMember.role})}}><option value="">No custom role</option>{departmentRoles.map(role=><option key={role.id} value={role.id}>{role.name} · {role.portal_access}</option>)}</select></label>
+              <label>Status<select value={newMember.status} onChange={(event)=>setNewMember({...newMember,status:event.target.value as NewMemberDraft["status"]})}><option value="active">Active</option><option value="leave">On leave</option><option value="inactive">Inactive</option></select></label>
+              <label className="wide">Customer source<input value="Manual customer — not linked to Shopify" disabled /></label>
+            </div>
+            <footer><button className="button button-dark" disabled={busy||!newMember.firstName.trim()||!newMember.lastName.trim()||!newMember.email.trim()||!Number.isFinite(Number(newMember.annualAllowance))||Number(newMember.annualAllowance)<0} onClick={addMember}>{busy?"Adding…":"Add customer"}</button></footer>
           </aside>
         </div>
       )}
