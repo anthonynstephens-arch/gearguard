@@ -283,14 +283,14 @@ export function PortalApp({
     }
   }
   async function importPurchaseHistory(){
-    if(!window.confirm("Import all orders from this Shopify B2B company for the last six months, match them to department members, and deduct them from assigned allowances? Orders already imported will be skipped."))return;
+    if(!window.confirm("Import all orders from this Shopify B2B company for the last six months, match them to department members, and calculate allowance spending from the line items? Existing imports will be checked and corrected."))return;
     setBusy(true);
     try{
       if(context.demo){setNotice("Historical purchases imported; duplicate orders were skipped");return}
       const response=await fetch("/api/shopify/import-history",{method:"POST"});
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||"Purchase history import failed");
-      setNotice(`${data.imported} of ${data.ordersFound} department orders imported; ${money(data.amountDeducted)} deducted${data.unmatched?`; ${data.unmatched} could not be matched to a member`:""}${data.warning?` — ${data.warning}`:""}`);
+      setNotice(`${data.imported} new and ${data.adjusted||0} corrected of ${data.ordersFound} department orders; ${money(data.amountDeducted)} deducted${data.amountRestored?` and ${money(data.amountRestored)} restored`:""}${data.unmatched?`; ${data.unmatched} could not be matched to a member`:""}${data.warning?` — ${data.warning}`:""}`);
       router.refresh();
     }catch(error){setNotice(error instanceof Error?error.message:"Purchase history import failed")}finally{setBusy(false)}
   }

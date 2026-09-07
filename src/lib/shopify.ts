@@ -41,14 +41,25 @@ query GearGuardCompanyOrders($id:ID!,$first:Int!,$after:String){
       pageInfo{hasNextPage endCursor}
       nodes{
         id name createdAt cancelledAt
-        currentSubtotalPriceSet{shopMoney{amount currencyCode}}
-        currentTotalDiscountsSet{shopMoney{amount currencyCode}}
+        lineItems(first:250){
+          pageInfo{hasNextPage endCursor}
+          nodes{originalTotalSet{shopMoney{amount currencyCode}}}
+        }
         purchasingEntity{
           ... on PurchasingCompany{
             contact{id customer{id firstName lastName defaultEmailAddress{emailAddress}}}
           }
         }
       }
+    }
+  }
+}`;
+export const ORDER_LINE_ITEMS_QUERY=`#graphql
+query GearGuardOrderLineItems($id:ID!,$first:Int!,$after:String){
+  order(id:$id){
+    lineItems(first:$first,after:$after){
+      pageInfo{hasNextPage endCursor}
+      nodes{originalTotalSet{shopMoney{amount currencyCode}}}
     }
   }
 }`;
