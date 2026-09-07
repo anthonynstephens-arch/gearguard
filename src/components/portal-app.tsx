@@ -663,7 +663,7 @@ export function PortalApp({
         setOrderDetail({reference:request?.request_number||"#1844",shopifyReference:request?.shopify_order_name,memberName:request?.member_name||`${context.member.first_name} ${context.member.last_name}`,date:request?.submitted_at||new Date().toISOString(),status:request?.status||"COMPLETED",total:request?.total_amount||product.price,allowanceAmount:request?.allowance_amount||product.price,personalAmount:request?.personal_amount||0,source:type==="request"?"GearGuard":"Shopify import",lineItems:[{id:"demo-line",name:product.title,variantTitle:product.variants[0]?.title,sku:product.variants[0]?.sku,quantity:1,unitPrice:product.price,lineTotal:product.price,imageUrl:product.image_url,properties:[]}]});
         return;
       }
-      const response=await fetch(`/api/orders/details?type=${type}&id=${id}`);
+      const response=await fetch("/api/orders/details",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({type,id})});
       const data=await response.json();if(!response.ok)throw new Error(data.error||"Could not load order details");
       setOrderDetail(data.order);
     }catch(error){setNotice(error instanceof Error?error.message:"Could not load order details");setOrderLoading(false)}finally{setOrderLoading(false)}
