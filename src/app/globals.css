@@ -454,6 +454,41 @@ h1 {
   color: var(--muted);
   line-height: 1.6;
 }
+.login-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 22px 0 16px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #eef3f5;
+}
+.login-methods button,
+.login-back {
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+}
+.login-methods button {
+  min-height: 40px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+.login-methods button.active {
+  background: #fff;
+  color: var(--navy);
+  box-shadow: 0 2px 8px #102c4214;
+}
+.login-back {
+  margin-top: 18px;
+  padding: 0;
+  background: transparent;
+  color: #164e72;
+  font-weight: 850;
+}
 .mini-label {
   color: var(--red);
   font-size: 11px;
@@ -480,6 +515,12 @@ h1 {
 .login-card input:focus {
   border-color: #648398;
   box-shadow: 0 0 0 3px #8cb0c32e;
+}
+.login-card .pin-input {
+  font-size: 24px;
+  font-weight: 850;
+  letter-spacing: 0.35em;
+  text-align: center;
 }
 .login-card form .button {
   margin-top: 5px;
